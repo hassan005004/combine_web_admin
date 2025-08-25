@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNavigation } from "@/components/layout/top-navigation";
 import { DomainSelector } from "@/components/domain-selector";
+import Login from "@/pages/login";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Pages from "@/pages/pages";
@@ -41,7 +42,7 @@ function Router() {
   }
 
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Login />;
   }
 
   return (
@@ -167,9 +168,7 @@ function Router() {
             }}
           </Route>
 
-          <Route path="/">
-            <Route path="/dashboard" />
-          </Route>
+          <Route path="/">{() => <Route path="/dashboard" />}</Route>
 
           <Route component={NotFound} />
         </Switch>

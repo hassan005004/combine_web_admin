@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertDomainSchema, insertPageSchema, insertDomainSettingsSchema, insertSeoSettingsSchema } from "@shared/schema";
+import { setupAuth, isAuthenticated, loginUser } from "./auth";
+import { insertDomainSchema, insertPageSchema, insertDomainSettingsSchema, insertSeoSettingsSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -10,9 +10,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // Auth routes
+  app.post('/api/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await loginUser(email, password);
+      if (user) {
+        (req.session as any).userId = user.id;
+        res.json({ success: true, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
+      } else {
+        res.status(401).json({ message: "Invalid credentials" });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post('/api/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        res.status(500).json({ message: "Logout failed" });
+      } else {
+        res.json({ success: true });
+      }
+    });
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.session as any).userId;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -158,6 +184,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating SEO settings:", error);
       res.status(400).json({ message: "Failed to update SEO settings" });
+    }
+  });
+
+  // User routes
+  app.get('/api/users', isAuthenticated, async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post('/api/users', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      // Hash password before storing
+      const bcrypt = require('bcrypt');
+      validatedData.password = await bcrypt.hash(validatedData.password, 10);
+      const user = await storage.createUser(validatedData);
+      // Don't send password back
+      const { password, ...userWithoutPassword } = user;
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(400).json({ message: "Failed to create user" });
     }
   });
 

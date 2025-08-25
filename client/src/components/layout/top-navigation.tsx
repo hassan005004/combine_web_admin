@@ -12,8 +12,14 @@ interface TopNavigationProps {
 export function TopNavigation({ onMenuClick, title, subtitle }: TopNavigationProps) {
   const { user } = useAuth();
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+      window.location.href = "/";
+    } catch (error) {
+      console.error('Logout failed:', error);
+      window.location.href = "/";
+    }
   };
 
   return (
@@ -35,24 +41,27 @@ export function TopNavigation({ onMenuClick, title, subtitle }: TopNavigationPro
           </div>
         </div>
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" className="relative" data-testid="notifications-button">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          <div className="relative">
+            <Button variant="ghost" size="sm" className="relative" data-testid="notifications-button">
+              <Bell className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                3
+              </span>
+            </Button>
+            {/* Notification dropdown would go here */}
+          </div>
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10" data-testid="user-avatar">
-              <AvatarImage src={user?.profileImageUrl || ""} />
+              <AvatarImage src={(user as any)?.profileImageUrl || ""} />
               <AvatarFallback>
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {(user as any)?.firstName?.[0]}{(user as any)?.lastName?.[0]}
               </AvatarFallback>
             </Avatar>
             <div className="hidden sm:block">
               <p className="text-sm font-medium text-slate-800" data-testid="user-name">
-                {user?.firstName} {user?.lastName}
+                {(user as any)?.firstName} {(user as any)?.lastName}
               </p>
-              <p className="text-xs text-slate-500" data-testid="user-email">{user?.email}</p>
+              <p className="text-xs text-slate-500" data-testid="user-email">{(user as any)?.email}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={handleLogout} data-testid="logout-button">
               Logout

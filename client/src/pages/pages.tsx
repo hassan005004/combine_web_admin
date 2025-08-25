@@ -13,7 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertPageSchema, Page, Domain } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Copy, Trash2 } from "lucide-react";
+import { Plus, Edit, Copy, Trash2, FileText } from "lucide-react";
 import { z } from "zod";
 
 const pageFormSchema = insertPageSchema.extend({
@@ -234,7 +234,8 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                         <FormControl>
                           <Input 
                             placeholder="Enter page title" 
-                            {...field} 
+                            {...field}
+                            value={field.value || ""}
                             data-testid="page-title-input"
                           />
                         </FormControl>
