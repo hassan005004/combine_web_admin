@@ -107,3 +107,20 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Ensure input borders are visible */
+input[type="text"], 
+input[type="email"], 
+input[type="password"],
+textarea,
+select {
+  border: 2px solid hsl(var(--border)) !important;
+}
+
+input[type="text"]:focus, 
+input[type="email"]:focus, 
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  border-color: hsl(var(--ring)) !important;
+}

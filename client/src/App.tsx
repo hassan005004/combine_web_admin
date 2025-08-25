@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Pages from "@/pages/pages";
+import Domains from "@/pages/domains";
 import DomainSettings from "@/pages/domain-settings";
 import SeoSettings from "@/pages/seo-settings";
 import Users from "@/pages/users";

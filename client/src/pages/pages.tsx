@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { JsonEditor } from "@/components/ui/json-editor";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -16,9 +15,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { Plus, Edit, Copy, Trash2, FileText } from "lucide-react";
 import { z } from "zod";
 
-const pageFormSchema = insertPageSchema.extend({
-  sectionsJson: z.string().optional(),
-});
+const pageFormSchema = insertPageSchema;
+
+interface SectionData {
+  key: string;
+  value: string;
+}
 
 type PageFormData = z.infer<typeof pageFormSchema>;
 
@@ -31,6 +33,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
+  const [sections, setSections] = useState<SectionData[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -46,9 +49,16 @@ export default function Pages({ selectedDomainId }: PagesProps) {
 
   const createPageMutation = useMutation({
     mutationFn: async (data: PageFormData) => {
+      const sectionsObj = sections.reduce((acc, section) => {
+        if (section.key && section.value) {
+          acc[section.key] = section.value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      
       const payload = {
         ...data,
-        sectionsJson: data.sectionsJson ? JSON.parse(data.sectionsJson) : {},
+        sectionsJson: { sections: sectionsObj },
       };
       return apiRequest("POST", `/api/domains/${selectedDomainId}/pages`, payload);
     },
@@ -57,6 +67,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Success", description: "Page created successfully!" });
       setIsEditorOpen(false);
+      setSections([]);
       form.reset();
     },
     onError: () => {
@@ -70,9 +81,16 @@ export default function Pages({ selectedDomainId }: PagesProps) {
 
   const updatePageMutation = useMutation({
     mutationFn: async (data: PageFormData) => {
+      const sectionsObj = sections.reduce((acc, section) => {
+        if (section.key && section.value) {
+          acc[section.key] = section.value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      
       const payload = {
         ...data,
-        sectionsJson: data.sectionsJson ? JSON.parse(data.sectionsJson) : {},
+        sectionsJson: { sections: sectionsObj },
       };
       return apiRequest("PUT", `/api/pages/${editingPage?.id}`, payload);
     },
@@ -81,6 +99,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       toast({ title: "Success", description: "Page updated successfully!" });
       setIsEditorOpen(false);
       setEditingPage(null);
+      setSections([]);
       form.reset();
     },
     onError: () => {
@@ -116,12 +135,36 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       name: "",
       title: "",
       subtitle: "",
-      sectionsJson: "{}",
+      sectionsJson: {},
       metaTitle: "",
       metaDescription: "",
       status: "draft",
     },
   });
+
+
+
+  const addSection = () => {
+    setSections([...sections, { key: "", value: "" }]);
+  };
+
+  const updateSection = (index: number, field: 'key' | 'value', value: string) => {
+    const newSections = [...sections];
+    newSections[index][field] = value;
+    setSections(newSections);
+  };
+
+  const removeSection = (index: number) => {
+    setSections(sections.filter((_, i) => i !== index));
+  };
+
+  const onSubmit = (data: PageFormData) => {
+    if (editingPage) {
+      updatePageMutation.mutate(data);
+    } else {
+      createPageMutation.mutate(data);
+    }
+  };
 
   const selectedDomain = domains.find(d => d.id === selectedDomainId);
 
@@ -134,11 +177,24 @@ export default function Pages({ selectedDomainId }: PagesProps) {
 
   const handleEdit = (page: Page) => {
     setEditingPage(page);
+    
+    // Convert sectionsJson back to sections array for editing
+    const sectionsData = page.sectionsJson as any;
+    if (sectionsData?.sections && typeof sectionsData.sections === 'object') {
+      const sectionsArray = Object.entries(sectionsData.sections).map(([key, value]) => ({
+        key,
+        value: value as string
+      }));
+      setSections(sectionsArray);
+    } else {
+      setSections([]);
+    }
+    
     form.reset({
       name: page.name,
       title: page.title || "",
       subtitle: page.subtitle || "",
-      sectionsJson: JSON.stringify(page.sectionsJson || {}, null, 2),
+      sectionsJson: page.sectionsJson || {},
       metaTitle: page.metaTitle || "",
       metaDescription: page.metaDescription || "",
       status: page.status,
@@ -160,13 +216,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     setIsEditorOpen(true);
   };
 
-  const onSubmit = (data: PageFormData) => {
-    if (editingPage) {
-      updatePageMutation.mutate(data);
-    } else {
-      createPageMutation.mutate(data);
-    }
-  };
+
 
   if (!selectedDomainId) {
     return (
@@ -191,6 +241,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
             <Button 
               onClick={() => {
                 setEditingPage(null);
+                setSections([]);
                 form.reset();
               }}
               data-testid="add-page-button"
@@ -263,25 +314,66 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="sectionsJson"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sections JSON</FormLabel>
-                      <FormControl>
-                        <JsonEditor
-                          value={field.value || "{}"}
-                          onChange={field.onChange}
-                          placeholder='{"sections": []}'
-                          rows={10}
-                          data-testid="sections-json-editor"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-medium text-slate-800">Page Sections</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addSection}
+                      data-testid="add-section-button"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Section
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {sections.map((section, index) => (
+                      <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-slate-700 block mb-1">Key</label>
+                            <Input
+                              value={section.key}
+                              onChange={(e) => updateSection(index, 'key', e.target.value)}
+                              placeholder="e.g., title, hero, content"
+                              className="border-2 border-slate-300"
+                              data-testid={`section-key-${index}`}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-slate-700 block mb-1">Value (HTML supported)</label>
+                            <Textarea
+                              value={section.value}
+                              onChange={(e) => updateSection(index, 'value', e.target.value)}
+                              placeholder="Enter content, HTML tags supported"
+                              rows={3}
+                              className="border-2 border-slate-300"
+                              data-testid={`section-value-${index}`}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeSection(index)}
+                            data-testid={`remove-section-${index}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {sections.length === 0 && (
+                      <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
+                        <p>No sections yet. Click "Add Section" to get started.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
