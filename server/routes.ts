@@ -8,7 +8,8 @@ import {
   insertPageSchema, 
   insertDomainSettingsSchema, 
   insertSeoSettingsSchema,
-  insertFaqSchema
+  insertFaqSchema,
+  insertPostSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -250,6 +251,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating FAQ enabled:", error);
       res.status(400).json({ message: "Failed to update FAQ setting" });
+    }
+  });
+
+  // Posts routes
+  app.get('/api/domains/:domainId/posts', isAuthenticated, async (req, res) => {
+    try {
+      const domainId = parseInt(req.params.domainId);
+      const posts = await storage.getPostsByDomain(domainId);
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      res.status(500).json({ message: "Failed to fetch posts" });
+    }
+  });
+
+  app.get('/api/domains/:domainId/posts/:slug', async (req, res) => {
+    try {
+      const domainId = parseInt(req.params.domainId);
+      const slug = req.params.slug;
+      const post = await storage.getPostBySlug(domainId, slug);
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      res.json(post);
+    } catch (error) {
+      console.error("Error fetching post:", error);
+      res.status(500).json({ message: "Failed to fetch post" });
+    }
+  });
+
+  app.post('/api/domains/:domainId/posts', isAuthenticated, async (req, res) => {
+    try {
+      const domainId = parseInt(req.params.domainId);
+      const validatedData = insertPostSchema.parse({ ...req.body, domainId });
+      const post = await storage.createPost(validatedData);
+      res.status(201).json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(400).json({ message: "Failed to create post" });
+    }
+  });
+
+  app.put('/api/posts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertPostSchema.partial().parse(req.body);
+      const post = await storage.updatePost(id, validatedData);
+      res.json(post);
+    } catch (error) {
+      console.error("Error updating post:", error);
+      res.status(400).json({ message: "Failed to update post" });
+    }
+  });
+
+  app.delete('/api/posts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePost(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      res.status(400).json({ message: "Failed to delete post" });
     }
   });
 

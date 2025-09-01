@@ -5,6 +5,7 @@ import {
   domainSettings,
   seoSettings,
   faqs,
+  posts,
   type User,
   type UpsertUser,
   type Domain,
@@ -16,6 +17,7 @@ import {
   type SeoSettings,
   type InsertSeoSettings,
   type InsertFaq,
+  type InsertPost,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -38,6 +40,7 @@ export interface IStorage {
   // Page operations
   getPagesByDomain(domainId: number): Promise<Page[]>;
   getPage(id: number): Promise<Page | undefined>;
+  getPageBySlug(slug: string): Promise<Page | undefined>;
   createPage(page: InsertPage): Promise<Page>;
   updatePage(id: number, page: Partial<InsertPage>): Promise<Page>;
   deletePage(id: number): Promise<void>;
@@ -56,6 +59,12 @@ export interface IStorage {
   updateFaq(id: number, data: Partial<InsertFaq>): Promise<any>; // Assuming 'any' for now
   deleteFaq(id: number): Promise<void>;
   updatePageFaqsEnabled(pageId: number, enabled: boolean): Promise<any>; // Assuming 'any' for now
+
+  // Post operations
+  getPostsByPage(pageId: number): Promise<any[]>; // Assuming 'any[]' for now
+  createPost(data: InsertPost): Promise<any>; // Assuming 'any' for now
+  updatePost(id: number, data: Partial<InsertPost>): Promise<any>; // Assuming 'any' for now
+  deletePost(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -129,6 +138,11 @@ export class DatabaseStorage implements IStorage {
 
   async getPage(id: number): Promise<Page | undefined> {
     const [page] = await db.select().from(pages).where(eq(pages.id, id));
+    return page;
+  }
+
+  async getPageBySlug(slug: string): Promise<Page | undefined> {
+    const [page] = await db.select().from(pages).where(eq(pages.slug, slug));
     return page;
   }
 
@@ -227,6 +241,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pages.id, pageId))
       .returning();
     return updated[0];
+  }
+
+  // Post operations
+  async getPostsByPage(pageId: number): Promise<any[]> {
+    return await db.select().from(posts)
+      .where(eq(posts.pageId, pageId))
+      .orderBy(posts.sortOrder, posts.createdAt);
+  }
+
+  async createPost(data: InsertPost): Promise<any> {
+    const created = await db.insert(posts).values(data).returning();
+    return created[0];
+  }
+
+  async updatePost(id: number, data: Partial<InsertPost>): Promise<any> {
+    const updated = await db.update(posts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(posts.id, id))
+      .returning();
+    return updated[0];
+  }
+
+  async deletePost(id: number): Promise<void> {
+    await db.delete(posts).where(eq(posts.id, id));
   }
 }
 

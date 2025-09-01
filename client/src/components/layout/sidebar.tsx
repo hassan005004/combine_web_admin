@@ -10,6 +10,7 @@ interface SidebarProps {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: ChartBar },
   { name: 'Pages', href: '/pages', icon: FileText },
+  { name: 'Posts', href: '/posts', icon: FileText }, // Added Posts link
   { name: 'Domain Settings', href: '/domain-settings', icon: Settings },
   { name: 'SEO & Analytics', href: '/seo-settings', icon: Search },
   { name: 'Users', href: '/users', icon: Users },
@@ -28,7 +29,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           data-testid="sidebar-overlay"
         />
       )}
-      
+
       {/* Sidebar */}
       <aside 
         className={cn(
@@ -55,7 +56,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {navigation.map((item) => {
             const isActive = location === item.href;
             const Icon = item.icon;
-            
+
             return (
               <Link
                 key={item.name}

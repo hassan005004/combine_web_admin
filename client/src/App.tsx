@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Pages from "@/pages/pages";
+import Posts from "@/pages/posts";
 import Domains from "@/pages/domains";
 import DomainSettings from "@/pages/domain-settings";
 import SeoSettings from "@/pages/seo-settings";
@@ -21,6 +22,7 @@ import NotFound from "@/pages/not-found";
 const pageConfig = {
   "/dashboard": { title: "Dashboard", subtitle: "Manage your domains and content" },
   "/pages": { title: "Pages", subtitle: "Create and manage website pages" },
+  "/posts": { title: "Posts", subtitle: "Create and manage blog posts" },
   "/domain-settings": { title: "Domain Settings", subtitle: "Configure domain-specific options" },
   "/seo-settings": { title: "SEO & Analytics", subtitle: "Optimize for search engines" },
   "/users": { title: "Users", subtitle: "Manage admin users and permissions" },
@@ -48,11 +50,11 @@ function Router() {
 
   return (
     <div className="min-h-screen flex bg-slate-50">
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
-      
+
       <main className="flex-1 lg:ml-64">
         <Switch>
           <Route path="/dashboard">
@@ -78,7 +80,7 @@ function Router() {
               );
             }}
           </Route>
-          
+
           <Route path="/pages">
             {(params) => {
               const config = pageConfig["/pages"];
@@ -97,6 +99,30 @@ function Router() {
                       />
                     </div>
                     <Pages selectedDomainId={selectedDomainId} />
+                  </div>
+                </>
+              );
+            }}
+          </Route>
+
+          <Route path="/posts">
+            {(params) => {
+              const config = pageConfig["/posts"];
+              return (
+                <>
+                  <TopNavigation
+                    onMenuClick={() => setSidebarOpen(true)}
+                    title={config.title}
+                    subtitle={config.subtitle}
+                  />
+                  <div className="p-6">
+                    <div className="mb-6">
+                      <DomainSelector
+                        selectedDomainId={selectedDomainId}
+                        onDomainChange={setSelectedDomainId}
+                      />
+                    </div>
+                    <Posts selectedDomainId={selectedDomainId} />
                   </div>
                 </>
               );
@@ -169,7 +195,9 @@ function Router() {
             }}
           </Route>
 
-          <Route path="/">{() => <Route path="/dashboard" />}</Route>
+          <Route path="/">
+            {() => <Route path="/dashboard" />}
+          </Route>
 
           <Route component={NotFound} />
         </Switch>
