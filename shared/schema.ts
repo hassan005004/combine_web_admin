@@ -9,8 +9,9 @@ import {
   boolean,
   serial,
   integer,
+  json,
 } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
@@ -57,19 +58,21 @@ export const domains = pgTable("domains", {
 // Domain settings table
 export const domainSettings = pgTable("domain_settings", {
   id: serial("id").primaryKey(),
-  domainId: serial("domain_id").references(() => domains.id),
-  visibleSections: jsonb("visible_sections").default([]),
-  navigationSettings: jsonb("navigation_settings").default({}),
+  domainId: integer("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  visibleSections: json("visible_sections").$type<string[]>().default([]),
+  customStyles: text("custom_styles"),
   footerDescription: text("footer_description"),
-  contactInfo: jsonb("contact_info").default({}),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  contactAddress: text("contact_address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // SEO settings table
 export const seoSettings = pgTable("seo_settings", {
   id: serial("id").primaryKey(),
-  domainId: serial("domain_id").references(() => domains.id),
+  domainId: integer("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
   websiteTitle: text("website_title"),
   metaDescription: text("meta_description"),
   metaKeywords: text("meta_keywords"),
@@ -87,7 +90,7 @@ export const seoSettings = pgTable("seo_settings", {
 // Pages table
 export const pages = pgTable("pages", {
   id: serial("id").primaryKey(),
-  domainId: serial("domain_id").references(() => domains.id),
+  domainId: integer("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   title: text("title"),
   subtitle: text("subtitle"),
@@ -169,7 +172,7 @@ export const insertPageSchema = createInsertSchema(pages).omit({
   updatedAt: true,
 });
 
-export const insertDomainSettingsSchema = createInsertSchema(domainSettings).omit({
+export const insertDomainSettingsSchema = createSelectSchema(domainSettings).omit({
   id: true,
   createdAt: true,
   updatedAt: true,

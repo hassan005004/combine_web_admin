@@ -87,6 +87,30 @@ async function seed() {
         ]).onConflictDoNothing();
       }
 
+      // Add dummy FAQs for other pages if they exist
+      const allPages = await db.select().from(pages).where(eq(pages.domainId, domainId));
+      
+      for (const page of allPages) {
+        if (page.id !== homePageData?.id && page.faqsEnabled) {
+          await db.insert(faqs).values([
+            {
+              pageId: page.id,
+              question: `What is ${page.name} about?`,
+              answer: `This page provides information about ${page.title || page.name}. Here you can find detailed content and resources.`,
+              sortOrder: 0,
+              isActive: true
+            },
+            {
+              pageId: page.id,
+              question: `How can I use ${page.name}?`,
+              answer: `You can navigate through ${page.name} to explore different features and content sections we've prepared for you.`,
+              sortOrder: 1,
+              isActive: true
+            }
+          ]).onConflictDoNothing();
+        }
+      }
+
 
       // Create domain settings
       await db.insert(domainSettings).values({

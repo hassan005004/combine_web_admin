@@ -67,7 +67,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   });
 
   useEffect(() => {
-    if (pageFaqs) {
+    if (pageFaqs && Array.isArray(pageFaqs)) {
       setFaqs(pageFaqs.map((faq: any) => ({
         id: faq.id,
         question: faq.question,

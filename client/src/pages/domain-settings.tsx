@@ -13,6 +13,7 @@ import { Home, Info, ShoppingCart, Newspaper, Mail } from "lucide-react";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 interface DomainSettingsProps {
   selectedDomainId: number | null;
@@ -93,7 +94,7 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
     queryKey: ["/api/domains"],
   });
 
-  const { data, isLoading } = useQuery<DomainSettings | null>({
+  const { data: domainSettings, isLoading } = useQuery<DomainSettings | null>({
     queryKey: ["/api/domains", selectedDomainId, "settings"],
     enabled: !!selectedDomainId,
     onSuccess: (data) => {
