@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { domains, pages, faqs, domainSettings } from "@shared/schema";
+import { domains, pages, faqs, domainSettings, posts } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 async function seed() {
@@ -88,7 +88,7 @@ async function seed() {
       }
 
       // Add dummy FAQs for other pages if they exist
-      const allPages = await db.select().from(pages).where(eq(pages.domainId, domainId));
+      const allPages = await db.select().from(pages).where(eq(pages.domainId, domain.id));
       
       for (const page of allPages) {
         if (page.id !== homePageData?.id && page.faqsEnabled) {
@@ -106,10 +106,75 @@ async function seed() {
               answer: `You can navigate through ${page.name} to explore different features and content sections we've prepared for you.`,
               sortOrder: 1,
               isActive: true
+            },
+            {
+              pageId: page.id,
+              question: `Is there support available for ${page.name}?`,
+              answer: `Yes! We provide comprehensive support and documentation for ${page.name}. Contact us if you need assistance.`,
+              sortOrder: 2,
+              isActive: true
             }
           ]).onConflictDoNothing();
         }
       }
+
+      // Add dummy posts
+      await db.insert(posts).values([
+        {
+          domainId: domain.id,
+          title: "Getting Started with Our Platform",
+          slug: "getting-started",
+          content: "Welcome to our platform! This comprehensive guide will help you get started with all the features and tools available. Learn how to create your first project, customize your settings, and make the most of our powerful features.",
+          excerpt: "A comprehensive guide to help you get started with our platform and its features.",
+          metaTitle: "Getting Started Guide - Test Domain",
+          metaDescription: "Learn how to get started with our platform in this comprehensive guide.",
+          status: "published",
+          publishedAt: new Date()
+        },
+        {
+          domainId: domain.id,
+          title: "Best Practices for Content Management",
+          slug: "content-management-best-practices",
+          content: "Effective content management is crucial for any successful website. In this article, we'll explore the best practices for organizing, creating, and maintaining your content. From SEO optimization to user experience, we cover everything you need to know.",
+          excerpt: "Learn the best practices for effective content management and organization.",
+          metaTitle: "Content Management Best Practices - Test Domain",
+          metaDescription: "Discover best practices for content management and organization.",
+          status: "published",
+          publishedAt: new Date()
+        },
+        {
+          domainId: domain.id,
+          title: "Advanced Features Overview",
+          slug: "advanced-features",
+          content: "Explore the advanced features that make our platform stand out. From custom integrations to advanced analytics, learn how to leverage these powerful tools to enhance your website's performance and user engagement.",
+          excerpt: "An overview of the advanced features available on our platform.",
+          metaTitle: "Advanced Features - Test Domain",
+          metaDescription: "Explore the advanced features available on our platform.",
+          status: "published",
+          publishedAt: new Date()
+        },
+        {
+          domainId: domain.id,
+          title: "SEO Optimization Tips",
+          slug: "seo-optimization-tips",
+          content: "Maximize your website's visibility with these proven SEO optimization techniques. Learn about keyword research, on-page optimization, technical SEO, and content strategies that drive organic traffic.",
+          excerpt: "Proven SEO optimization techniques to improve your website's visibility.",
+          metaTitle: "SEO Optimization Tips - Test Domain",
+          metaDescription: "Learn proven SEO techniques to improve your website's search visibility.",
+          status: "draft"
+        },
+        {
+          domainId: domain.id,
+          title: "Understanding Analytics and Insights",
+          slug: "analytics-insights",
+          content: "Make data-driven decisions with our comprehensive analytics suite. This guide covers how to interpret your website metrics, track user behavior, and use insights to improve your content strategy.",
+          excerpt: "Learn how to use analytics and insights to make data-driven decisions.",
+          metaTitle: "Analytics and Insights Guide - Test Domain",
+          metaDescription: "Learn how to use analytics to make data-driven decisions for your website.",
+          status: "published",
+          publishedAt: new Date()
+        }
+      ]).onConflictDoNothing();
 
 
       // Create domain settings

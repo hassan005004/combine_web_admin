@@ -115,6 +115,23 @@ export const faqs = pgTable("faqs", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Posts table
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  domainId: integer("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  title: text("title").notNull(),
+  slug: varchar("slug", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  featuredImageUrl: text("featured_image_url"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const domainsRelations = relations(domains, ({ many, one }) => ({
   pages: many(pages),
@@ -134,6 +151,13 @@ export const faqsRelations = relations(faqs, ({ one }) => ({
   page: one(pages, {
     fields: [faqs.pageId],
     references: [pages.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  domain: one(domains, {
+    fields: [posts.domainId],
+    references: [domains.id],
   }),
 }));
 
@@ -190,6 +214,12 @@ export const insertFaqSchema = createInsertSchema(faqs).omit({
   updatedAt: true,
 });
 
+export const insertPostSchema = createInsertSchema(posts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -204,3 +234,5 @@ export type SeoSettings = typeof seoSettings.$inferSelect;
 export type InsertSeoSettings = z.infer<typeof insertSeoSettingsSchema>;
 export type Faq = typeof faqs.$inferSelect;
 export type InsertFaq = z.infer<typeof insertFaqSchema>;
+export type Post = typeof posts.$inferSelect;
+export type InsertPost = z.infer<typeof insertPostSchema>;

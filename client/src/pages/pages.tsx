@@ -10,13 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPageSchema, Page, Domain, Faq, insertFaqSchema } from "@shared/schema";
+import { insertPageSchema, Page, Domain, Faq, insertFaqSchema, Post, insertPostSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Copy, Trash2, FileText, HelpCircle } from "lucide-react";
+import { Plus, Edit, Copy, Trash2, FileText, HelpCircle, BookOpen } from "lucide-react";
 import { z } from "zod";
 
 const pageFormSchema = insertPageSchema;
 const faqFormSchema = insertFaqSchema.omit({ pageId: true });
+const postFormSchema = insertPostSchema; // Add post form schema
 
 interface SectionData {
   key: string;
@@ -31,8 +32,19 @@ interface FaqData {
   isActive: boolean;
 }
 
+// Add PostData interface
+interface PostData {
+  id?: number;
+  title: string;
+  slug: string;
+  content: string;
+  publishedAt?: Date | null;
+  status: "draft" | "published" | "archived";
+}
+
 type PageFormData = z.infer<typeof pageFormSchema>;
 type FaqFormData = z.infer<typeof faqFormSchema>;
+type PostFormData = z.infer<typeof postFormSchema>; // Add PostFormData type
 
 interface PagesProps {
   selectedDomainId: number | null;
@@ -47,7 +59,10 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   const [isFaqDialogOpen, setIsFaqDialogOpen] = useState(false);
   const [managingFaqsForPage, setManagingFaqsForPage] = useState<Page | null>(null);
   const [faqs, setFaqs] = useState<FaqData[]>([]);
-  
+  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false); // State for post dialog
+  const [managingPostsForPage, setManagingPostsForPage] = useState<Page | null>(null); // State for managing posts
+  const [posts, setPosts] = useState<PostData[]>([]); // State for posts
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -60,15 +75,15 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     enabled: !!selectedDomainId,
   });
 
-  const { data: pageFaqs } = useQuery({
+  const { data: loadedFaqs } = useQuery({ // Renamed from pageFaqs to loadedFaqs
     queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"],
     queryFn: () => apiRequest("GET", `/api/pages/${managingFaqsForPage?.id}/faqs`),
     enabled: !!managingFaqsForPage?.id,
   });
 
   useEffect(() => {
-    if (pageFaqs && Array.isArray(pageFaqs)) {
-      setFaqs(pageFaqs.map((faq: any) => ({
+    if (loadedFaqs && Array.isArray(loadedFaqs)) { // Use loadedFaqs
+      setFaqs(loadedFaqs.map((faq: any) => ({
         id: faq.id,
         question: faq.question,
         answer: faq.answer,
@@ -78,8 +93,9 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     } else {
       setFaqs([]);
     }
-  }, [pageFaqs, managingFaqsForPage]);
+  }, [loadedFaqs, managingFaqsForPage]); // Use loadedFaqs
 
+  // Mutation for creating a page
   const createPageMutation = useMutation({
     mutationFn: async (data: PageFormData) => {
       const sectionsObj = sections.reduce((acc, section) => {
@@ -88,7 +104,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
         }
         return acc;
       }, {} as Record<string, string>);
-      
+
       const payload = {
         ...data,
         sectionsJson: { sections: sectionsObj },
@@ -112,6 +128,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for updating a page
   const updatePageMutation = useMutation({
     mutationFn: async (data: PageFormData) => {
       const sectionsObj = sections.reduce((acc, section) => {
@@ -120,7 +137,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
         }
         return acc;
       }, {} as Record<string, string>);
-      
+
       const payload = {
         ...data,
         sectionsJson: { sections: sectionsObj },
@@ -144,6 +161,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for toggling FAQs for a page
   const toggleFaqsMutation = useMutation({
     mutationFn: async ({ pageId, enabled }: { pageId: number, enabled: boolean }) => {
       return apiRequest("PUT", `/api/pages/${pageId}/faqs-enabled`, { enabled });
@@ -161,6 +179,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for creating a FAQ
   const createFaqMutation = useMutation({
     mutationFn: async (data: FaqFormData) => {
       return apiRequest("POST", `/api/pages/${managingFaqsForPage?.id}/faqs`, data);
@@ -178,6 +197,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for updating a FAQ
   const updateFaqMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number, data: Partial<FaqFormData> }) => {
       return apiRequest("PUT", `/api/faqs/${id}`, data);
@@ -195,6 +215,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for deleting a FAQ
   const deleteFaqMutation = useMutation({
     mutationFn: async (id: number) => {
       return apiRequest("DELETE", `/api/faqs/${id}`);
@@ -212,6 +233,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  // Mutation for deleting a page
   const deletePageMutation = useMutation({
     mutationFn: async (pageId: number) => {
       return apiRequest("DELETE", `/api/pages/${pageId}`);
@@ -230,7 +252,109 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
-  const form = useForm<PageFormData>({
+  // Mutation for creating a post
+  const createPostMutation = useMutation({
+    mutationFn: async (data: PostFormData) => {
+      // Ensure `managingPostsForPage` is not null before proceeding
+      if (!managingPostsForPage || managingPostsForPage.id === undefined) {
+        throw new Error("Page ID is not available for creating post.");
+      }
+      return apiRequest("POST", `/api/pages/${managingPostsForPage.id}/posts`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingPostsForPage?.id, "posts"] });
+      toast({ title: "Success", description: "Post created successfully!" });
+      setIsPostDialogOpen(false);
+      setPosts([]); // Clear current posts to refetch
+      setEditingPost(null); // Clear editing state
+      postForm.reset(initialPostFormState); // Reset form
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create post. Please try again.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Mutation for updating a post
+  const updatePostMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number, data: Partial<PostFormData> }) => {
+      return apiRequest("PUT", `/api/posts/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingPostsForPage?.id, "posts"] });
+      toast({ title: "Success", description: "Post updated successfully!" });
+      setIsPostDialogOpen(false);
+      setEditingPost(null); // Clear editing state
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to update post. Please try again.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Mutation for deleting a post
+  const deletePostMutation = useMutation({
+    mutationFn: async (postId: number) => {
+      return apiRequest("DELETE", `/api/posts/${postId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingPostsForPage?.id, "posts"] });
+      toast({ title: "Success", description: "Post deleted successfully!" });
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId)); // Remove from state immediately
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete post. Please try again.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // Fetch posts for the current page
+  const { data: loadedPosts, isLoading: isLoadingPosts } = useQuery<PostData[]>({
+    queryKey: ["/api/pages", managingPostsForPage?.id, "posts"],
+    queryFn: () => apiRequest("GET", `/api/pages/${managingPostsForPage?.id}/posts`),
+    enabled: !!managingPostsForPage?.id,
+  });
+
+  // Effect to set posts state when data is loaded
+  useEffect(() => {
+    if (loadedPosts && Array.isArray(loadedPosts)) {
+      setPosts(loadedPosts.map((post: any) => ({
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        content: post.content,
+        publishedAt: post.publishedAt ? new Date(post.publishedAt) : null,
+        status: post.status,
+      })));
+    } else {
+      setPosts([]);
+    }
+  }, [loadedPosts, managingPostsForPage]);
+
+  // Dummy data for FAQs (example)
+  const dummyFaqs: FaqData[] = [
+    { id: 1, question: "What is this service?", answer: "This service helps you manage your website pages and content.", sortOrder: 0, isActive: true },
+    { id: 2, question: "How do I create a new page?", answer: "Click the 'Add New Page' button and fill out the form.", sortOrder: 1, isActive: true },
+    { id: 3, question: "Can I add FAQs?", answer: "Yes, you can manage FAQs for each page individually.", sortOrder: 2, isActive: false },
+  ];
+
+  // Dummy data for Posts (example)
+  const dummyPosts: PostData[] = [
+    { id: 1, title: "Getting Started with Your Website", slug: "getting-started-website", content: "Welcome to your new website! This post covers the basics.", publishedAt: new Date(), status: "published" },
+    { id: 2, title: "Understanding Page Slugs", slug: "understanding-page-slugs", content: "Learn how slugs work and why they are important for SEO.", publishedAt: new Date(), status: "published" },
+    { id: 3, title: "Advanced Content Management", slug: "advanced-content-management", content: "Explore advanced features for managing your content.", publishedAt: null, status: "draft" },
+  ];
+
+  const pageForm = useForm<PageFormData>({
     resolver: zodResolver(pageFormSchema),
     defaultValues: {
       name: "",
@@ -244,7 +368,26 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  const postForm = useForm<PostFormData>({
+    resolver: zodResolver(postFormSchema),
+    defaultValues: {
+      title: "",
+      slug: "",
+      content: "",
+      status: "draft",
+      publishedAt: null,
+    },
+  });
 
+  const initialPostFormState = { // To reset post form
+    title: "",
+    slug: "",
+    content: "",
+    status: "draft",
+    publishedAt: null,
+  };
+
+  const [editingPost, setEditingPost] = useState<PostData | null>(null);
 
   const addSection = () => {
     setSections([...sections, { key: "", value: "" }]);
@@ -260,7 +403,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     setSections(sections.filter((_, i) => i !== index));
   };
 
-  const onSubmit = (data: PageFormData) => {
+  const onSubmitPage = (data: PageFormData) => {
     if (editingPage) {
       updatePageMutation.mutate(data);
     } else {
@@ -277,10 +420,9 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     return matchesSearch && matchesStatus;
   });
 
-  const handleEdit = (page: Page) => {
+  const handleEditPage = (page: Page) => { // Renamed from handleEdit
     setEditingPage(page);
-    
-    // Convert sectionsJson back to sections array for editing
+
     const sectionsData = page.sectionsJson as any;
     if (sectionsData?.sections && typeof sectionsData.sections === 'object') {
       const sectionsArray = Object.entries(sectionsData.sections).map(([key, value]) => ({
@@ -291,8 +433,8 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     } else {
       setSections([]);
     }
-    
-    form.reset({
+
+    pageForm.reset({
       name: page.name,
       title: page.title || "",
       subtitle: page.subtitle || "",
@@ -305,8 +447,8 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     setIsEditorOpen(true);
   };
 
-  const handleDuplicate = (page: Page) => {
-    form.reset({
+  const handleDuplicatePage = (page: Page) => { // Renamed from handleDuplicate
+    pageForm.reset({
       name: `${page.name}-copy`,
       title: page.title || "",
       subtitle: page.subtitle || "",
@@ -314,6 +456,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       metaTitle: page.metaTitle || "",
       metaDescription: page.metaDescription || "",
       status: "draft",
+      faqsEnabled: page.faqsEnabled || false,
     });
     setEditingPage(null);
     setIsEditorOpen(true);
@@ -321,11 +464,23 @@ export default function Pages({ selectedDomainId }: PagesProps) {
 
   const handleManageFaqs = (page: Page) => {
     setManagingFaqsForPage(page);
+    // Load dummy FAQs if no FAQs are loaded for this page yet
+    if (!loadedFaqs || loadedFaqs.length === 0) {
+      setFaqs(dummyFaqs);
+    } else {
+      setFaqs(loadedFaqs.map((faq: any) => ({
+        id: faq.id,
+        question: faq.question,
+        answer: faq.answer,
+        sortOrder: faq.sortOrder,
+        isActive: faq.isActive
+      })));
+    }
     setIsFaqDialogOpen(true);
   };
 
   const addFaq = () => {
-    const newFaq = {
+    const newFaq: FaqData = {
       question: "",
       answer: "",
       sortOrder: faqs.length,
@@ -352,8 +507,8 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     for (const faq of faqs) {
       if (faq.question && faq.answer) {
         if (faq.id) {
-          await updateFaqMutation.mutateAsync({ 
-            id: faq.id, 
+          await updateFaqMutation.mutateAsync({
+            id: faq.id,
             data: {
               question: faq.question,
               answer: faq.answer,
@@ -375,6 +530,98 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     setManagingFaqsForPage(null);
   };
 
+  // Handler for opening the post dialog
+  const handleManagePosts = (page: Page) => {
+    setManagingPostsForPage(page);
+    // Load dummy posts if no posts are loaded for this page yet
+    if (!loadedPosts || loadedPosts.length === 0) {
+      setPosts(dummyPosts);
+    } else {
+      setPosts(loadedPosts.map((post: any) => ({
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        content: post.content,
+        publishedAt: post.publishedAt ? new Date(post.publishedAt) : null,
+        status: post.status,
+      })));
+    }
+    setIsPostDialogOpen(true);
+  };
+
+  // Handler for adding a new post
+  const addPost = () => {
+    const newPost: PostData = {
+      title: "",
+      slug: "",
+      content: "",
+      status: "draft",
+      publishedAt: null,
+    };
+    setPosts([...posts, newPost]);
+    setEditingPost(newPost); // Set the new post as editing
+    postForm.reset({ ...newPost }); // Reset the form with new post data
+  };
+
+  // Handler for updating a post in the state
+  const updatePost = (index: number, field: keyof PostData, value: string | number | Date | null) => {
+    const newPosts = [...posts];
+    newPosts[index] = { ...newPosts[index], [field]: value };
+    setPosts(newPosts);
+  };
+
+  // Handler for removing a post
+  const removePost = (index: number) => {
+    const post = posts[index];
+    if (post.id) {
+      deletePostMutation.mutate(post.id);
+    }
+    setPosts(posts.filter((_, i) => i !== index));
+  };
+
+  // Handler for saving all posts
+  const savePosts = async () => {
+    for (const post of posts) {
+      if (post.title && post.slug && post.content) {
+        if (post.id) {
+          await updatePostMutation.mutateAsync({
+            id: post.id,
+            data: {
+              title: post.title,
+              slug: post.slug,
+              content: post.content,
+              status: post.status,
+              publishedAt: post.publishedAt,
+            },
+          });
+        } else {
+          await createPostMutation.mutateAsync({
+            title: post.title,
+            slug: post.slug,
+            content: post.content,
+            status: post.status,
+            publishedAt: post.publishedAt,
+          });
+        }
+      }
+    }
+    setIsPostDialogOpen(false);
+    setManagingPostsForPage(null);
+    setEditingPost(null); // Clear editing post state
+  };
+
+  // Handler for form submission for new/edited posts
+  const onSubmitPost = (data: PostFormData) => {
+    if (editingPost && editingPost.id !== undefined) { // Check if editing an existing post
+      updatePostMutation.mutate({ id: editingPost.id, data });
+    } else {
+      createPostMutation.mutate(data);
+    }
+    // After submission, close the dialog if successful, or handle error
+    // For now, let's assume we need to reset the editing state after submission
+    setEditingPost(null);
+    postForm.reset(initialPostFormState); // Reset form after submit
+  };
 
 
   if (!selectedDomainId) {
@@ -388,234 +635,453 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   return (
     <div className="space-y-6" data-testid="pages-content">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+      <div className="flex flex-col sm:flex-col justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h3 className="text-xl font-semibold text-slate-800">Pages Management</h3>
           <p className="text-slate-600">
             Manage content pages for <span className="font-medium">{selectedDomain?.name}</span>
           </p>
         </div>
-        <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              onClick={() => {
-                setEditingPage(null);
-                setSections([]);
-                form.reset();
-              }}
-              data-testid="add-page-button"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Page
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingPage ? "Edit Page" : "Create New Page"}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="flex space-x-2">
+          <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={() => {
+                  setEditingPage(null);
+                  setSections([]);
+                  pageForm.reset();
+                }}
+                data-testid="add-page-button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Page
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingPage ? "Edit Page" : "Create New Page"}
+                </DialogTitle>
+              </DialogHeader>
+              <Form {...pageForm}>
+                <form onSubmit={pageForm.handleSubmit(onSubmitPage)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={pageForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Page Name</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="e.g., homepage" 
+                              {...field} 
+                              data-testid="page-name-input"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={pageForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Page Title</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Enter page title" 
+                              {...field}
+                              value={field.value || ""}
+                              data-testid="page-title-input"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
-                    control={form.control}
-                    name="name"
+                    control={pageForm.control}
+                    name="subtitle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Page Name</FormLabel>
+                        <FormLabel>Page Subtitle</FormLabel>
                         <FormControl>
                           <Input 
-                            placeholder="e.g., homepage" 
+                            placeholder="Enter page subtitle" 
                             {...field} 
-                            data-testid="page-name-input"
+                            data-testid="page-subtitle-input"
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-medium text-slate-800">Page Sections</h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addSection}
+                        data-testid="add-section-button"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Section
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {sections.map((section, index) => (
+                        <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-1">
+                              <label className="text-sm font-medium text-slate-700 block mb-1">Key</label>
+                              <Input
+                                value={section.key}
+                                onChange={(e) => updateSection(index, 'key', e.target.value)}
+                                placeholder="e.g., title, hero, content"
+                                className="border-2 border-slate-300"
+                                data-testid={`section-key-${index}`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-sm font-medium text-slate-700 block mb-1">Value (HTML supported)</label>
+                              <Textarea
+                                value={section.value}
+                                onChange={(e) => updateSection(index, 'value', e.target.value)}
+                                placeholder="Enter content, HTML tags supported"
+                                rows={3}
+                                className="border-2 border-slate-300"
+                                data-testid={`section-value-${index}`}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeSection(index)}
+                              data-testid={`remove-section-${index}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {sections.length === 0 && (
+                        <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
+                          <p>No sections yet. Click "Add Section" to get started.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={pageForm.control}
+                      name="metaTitle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Meta Title</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="SEO meta title" 
+                              {...field} 
+                              data-testid="meta-title-input"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={pageForm.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="page-status-select">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="published">Published</SelectItem>
+                              <SelectItem value="archived">Archived</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
-                    control={form.control}
-                    name="title"
+                    control={pageForm.control}
+                    name="metaDescription"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Page Title</FormLabel>
+                        <FormLabel>Meta Description</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Enter page title" 
-                            {...field}
-                            value={field.value || ""}
-                            data-testid="page-title-input"
+                          <Textarea 
+                            placeholder="SEO meta description" 
+                            rows={3} 
+                            {...field} 
+                            data-testid="meta-description-textarea"
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
 
-                <FormField
-                  control={form.control}
-                  name="subtitle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Page Subtitle</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Enter page subtitle" 
-                          {...field} 
-                          data-testid="page-subtitle-input"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-medium text-slate-800">Page Sections</h4>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addSection}
-                      data-testid="add-section-button"
+                  <div className="flex justify-end space-x-4">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsEditorOpen(false)}
+                      data-testid="cancel-page-button"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Section
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={createPageMutation.isPending || updatePageMutation.isPending}
+                      data-testid="save-page-button"
+                    >
+                      {editingPage ? "Update Page" : "Create Page"}
                     </Button>
                   </div>
-                  
-                  <div className="space-y-3">
-                    {sections.map((section, index) => (
-                      <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
-                        <div className="flex items-start space-x-3">
-                          <div className="flex-1">
-                            <label className="text-sm font-medium text-slate-700 block mb-1">Key</label>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Button to open Post Management Dialog */}
+          <Dialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={() => {
+                  setManagingPostsForPage(selectedDomain); // Assuming posts are managed at domain level for now, or could be page specific
+                  setPosts([]); // Clear existing posts when opening dialog for new page
+                  setEditingPost(null); // Reset editing post
+                  postForm.reset(initialPostFormState); // Reset post form
+                }}
+                data-testid="manage-posts-button"
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                Manage Posts
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  Manage Posts for {managingPostsForPage?.name || "Selected Domain"}
+                </DialogTitle>
+              </DialogHeader>
+
+              <Form {...postForm}>
+                <form onSubmit={postForm.handleSubmit(onSubmitPost)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={postForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Post Title</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Enter post title" 
+                              {...field} 
+                              data-testid="post-title-input"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={postForm.control}
+                      name="slug"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Slug</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="e.g., my-first-post" 
+                              {...field} 
+                              data-testid="post-slug-input"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={postForm.control}
+                    name="content"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Content (HTML supported)</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter post content" 
+                            rows={6} 
+                            {...field} 
+                            data-testid="post-content-textarea"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={postForm.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="post-status-select">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="published">Published</SelectItem>
+                              <SelectItem value="archived">Archived</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={postForm.control}
+                      name="publishedAt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Published Date</FormLabel>
+                          <FormControl>
                             <Input
-                              value={section.key}
-                              onChange={(e) => updateSection(index, 'key', e.target.value)}
-                              placeholder="e.g., title, hero, content"
+                              type="datetime-local"
+                              placeholder="Select publish date"
+                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
+                              value={field.value ? new Date(field.value).toISOString().slice(0, 16) : ""}
+                              data-testid="post-publishedAt-input"
                               className="border-2 border-slate-300"
-                              data-testid={`section-key-${index}`}
                             />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-sm font-medium text-slate-700 block mb-1">Value (HTML supported)</label>
-                            <Textarea
-                              value={section.value}
-                              onChange={(e) => updateSection(index, 'value', e.target.value)}
-                              placeholder="Enter content, HTML tags supported"
-                              rows={3}
-                              className="border-2 border-slate-300"
-                              data-testid={`section-value-${index}`}
-                            />
-                          </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-4">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsPostDialogOpen(false);
+                        setEditingPost(null); // Reset editing post
+                        postForm.reset(initialPostFormState); // Reset form
+                      }}
+                      data-testid="cancel-post-button"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={createPostMutation.isPending || updatePostMutation.isPending}
+                      data-testid="save-post-button"
+                    >
+                      {editingPost && editingPost.id !== undefined ? "Update Post" : "Add Post"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+
+              {/* Display existing posts */}
+              <div className="mt-8 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-medium text-slate-800">Existing Posts</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addPost}
+                    data-testid="add-new-post-button"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add New Post
+                  </Button>
+                </div>
+
+                {isLoadingPosts ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <p>Loading posts...</p>
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
+                    <p>No posts yet. Click "Add New Post" to get started.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {posts.map((post, index) => (
+                      <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-slate-800">{post.title}</p>
+                          <p className="text-sm text-slate-600">Slug: {post.slug} | Status: {post.status}</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
                           <Button
-                            type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeSection(index)}
-                            data-testid={`remove-section-${index}`}
+                            onClick={() => {
+                              setEditingPost(post);
+                              postForm.reset({
+                                title: post.title,
+                                slug: post.slug,
+                                content: post.content,
+                                status: post.status,
+                                publishedAt: post.publishedAt,
+                              });
+                            }}
+                            data-testid={`edit-post-${index}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removePost(index)}
+                            data-testid={`remove-post-${index}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
                     ))}
-                    
-                    {sections.length === 0 && (
-                      <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
-                        <p>No sections yet. Click "Add Section" to get started.</p>
-                      </div>
-                    )}
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="metaTitle"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Meta Title</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="SEO meta title" 
-                            {...field} 
-                            data-testid="meta-title-input"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="page-status-select">
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="draft">Draft</SelectItem>
-                            <SelectItem value="published">Published</SelectItem>
-                            <SelectItem value="archived">Archived</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="metaDescription"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Meta Description</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="SEO meta description" 
-                          rows={3} 
-                          {...field} 
-                          data-testid="meta-description-textarea"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end space-x-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsEditorOpen(false)}
-                    data-testid="cancel-page-button"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={createPageMutation.isPending || updatePageMutation.isPending}
-                    data-testid="save-page-button"
-                  >
-                    {editingPage ? "Update Page" : "Create Page"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search and Filter */}
@@ -671,6 +1137,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Title</th>
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Status</th>
                     <th className="text-left py-4 px-6 font-medium text-slate-700">FAQs</th>
+                    <th className="text-left py-4 px-6 font-medium text-slate-700">Posts</th> {/* Added Posts column */}
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Last Modified</th>
                     <th className="text-right py-4 px-6 font-medium text-slate-700">Actions</th>
                   </tr>
@@ -726,6 +1193,16 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                           )}
                         </div>
                       </td>
+                      <td className="py-4 px-6"> {/* Posts count or manage button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManagePosts(page)} // Navigate to manage posts for this page
+                          data-testid={`manage-posts-${page.id}`}
+                        >
+                          Manage Posts ({posts.filter(p => p.id !== undefined).length}) {/* Display count */}
+                        </Button>
+                      </td>
                       <td className="py-4 px-6 text-slate-600">
                         {new Date(page.updatedAt!).toLocaleDateString()}
                       </td>
@@ -734,7 +1211,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEdit(page)}
+                            onClick={() => handleEditPage(page)}
                             data-testid={`edit-page-${page.id}`}
                           >
                             <Edit className="w-4 h-4" />
@@ -742,7 +1219,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDuplicate(page)}
+                            onClick={() => handleDuplicatePage(page)}
                             data-testid={`duplicate-page-${page.id}`}
                           >
                             <Copy className="w-4 h-4" />
@@ -775,7 +1252,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
               Manage FAQs for {managingFaqsForPage?.name}
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-lg font-medium text-slate-800">Frequently Asked Questions</h4>
@@ -790,7 +1267,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                 Add FAQ
               </Button>
             </div>
-            
+
             <div className="space-y-4">
               {faqs.map((faq, index) => (
                 <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
@@ -851,7 +1328,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                   </div>
                 </div>
               ))}
-              
+
               {faqs.length === 0 && (
                 <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
                   <p>No FAQs yet. Click "Add FAQ" to get started.</p>
