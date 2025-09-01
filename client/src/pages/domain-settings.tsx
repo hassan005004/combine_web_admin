@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { DomainSettings, Domain } from "@shared/schema";
@@ -27,6 +29,8 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
   const [menuPosition, setMenuPosition] = useState("top");
   const [showSearchBar, setShowSearchBar] = useState(true);
   const [enableBreadcrumbs, setEnableBreadcrumbs] = useState(false);
+  const [footerDescription, setFooterDescription] = useState<string>("");
+  const [contactInfo, setContactInfo] = useState<any>({});
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -35,7 +39,7 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
     queryKey: ["/api/domains"],
   });
 
-  const { data: settings, isLoading } = useQuery<DomainSettings | null>({
+  const { data, isLoading } = useQuery<DomainSettings | null>({
     queryKey: ["/api/domains", selectedDomainId, "settings"],
     enabled: !!selectedDomainId,
     onSuccess: (data) => {
@@ -46,6 +50,8 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
         setMenuPosition(navSettings.menuPosition || "top");
         setShowSearchBar(navSettings.showSearchBar !== false);
         setEnableBreadcrumbs(navSettings.enableBreadcrumbs || false);
+        setFooterDescription(data.footerDescription || "");
+        setContactInfo(data.contactInfo || {});
       }
     },
   });
@@ -59,8 +65,8 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
       toast({ title: "Success", description: "Settings saved successfully!" });
     },
     onError: () => {
-      toast({ 
-        title: "Error", 
+      toast({
+        title: "Error",
         description: "Failed to save settings. Please try again.",
         variant: "destructive"
       });
@@ -101,6 +107,21 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
     });
   };
 
+  const handleSaveAllSettings = () => {
+    updateSettingsMutation.mutate({
+      visibleSections,
+      navigationSettings: {
+        menuStyle,
+        menuPosition,
+        showSearchBar,
+        enableBreadcrumbs,
+      },
+      footerDescription,
+      contactInfo
+    });
+  };
+
+
   if (!selectedDomainId) {
     return (
       <div className="text-center py-12" data-testid="no-domain-selected">
@@ -126,44 +147,28 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Visible Sections */}
         <Card>
           <CardHeader>
             <CardTitle>Visible Sections</CardTitle>
+            <CardDescription>
+              Choose which sections to display on your website
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {availableSections.map((section) => {
-                const Icon = section.icon;
-                return (
-                  <label
-                    key={section.id}
-                    className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
-                    data-testid={`section-${section.id}`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="w-5 h-5 text-slate-600" />
-                      <span className="font-medium text-slate-800">{section.name}</span>
-                    </div>
-                    <Checkbox
-                      checked={visibleSections.includes(section.id)}
-                      onCheckedChange={(checked) => handleSectionToggle(section.id, checked as boolean)}
-                      data-testid={`checkbox-${section.id}`}
-                    />
-                  </label>
-                );
-              })}
-            </div>
-
-            <Button
-              onClick={handleSaveSectionSettings}
-              disabled={updateSettingsMutation.isPending}
-              className="w-full mt-6"
-              data-testid="save-section-settings"
-            >
-              Save Section Settings
-            </Button>
+          <CardContent className="space-y-4">
+            {availableSections.map((section) => (
+              <div key={section.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={section.id}
+                  checked={visibleSections.includes(section.id)}
+                  onCheckedChange={(checked) => handleSectionToggle(section.id, checked as boolean)}
+                />
+                <label htmlFor={section.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  {section.name}
+                </label>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -171,71 +176,154 @@ export default function DomainSettingsPage({ selectedDomainId }: DomainSettingsP
         <Card>
           <CardHeader>
             <CardTitle>Navigation Settings</CardTitle>
+            <CardDescription>
+              Configure your website navigation
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Menu Style</label>
-                <Select value={menuStyle} onValueChange={setMenuStyle}>
-                  <SelectTrigger data-testid="menu-style-select">
-                    <SelectValue placeholder="Select menu style" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="horizontal">Horizontal</SelectItem>
-                    <SelectItem value="vertical">Vertical</SelectItem>
-                    <SelectItem value="dropdown">Dropdown</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Menu Position</label>
-                <Select value={menuPosition} onValueChange={setMenuPosition}>
-                  <SelectTrigger data-testid="menu-position-select">
-                    <SelectValue placeholder="Select menu position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="top">Top</SelectItem>
-                    <SelectItem value="side">Side</SelectItem>
-                    <SelectItem value="bottom">Bottom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <Checkbox
-                    checked={showSearchBar}
-                    onCheckedChange={(checked) => setShowSearchBar(checked as boolean)}
-                    data-testid="show-search-bar-checkbox"
-                  />
-                  <span className="text-slate-700">Show search bar</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <Checkbox
-                    checked={enableBreadcrumbs}
-                    onCheckedChange={(checked) => setEnableBreadcrumbs(checked as boolean)}
-                    data-testid="enable-breadcrumbs-checkbox"
-                  />
-                  <span className="text-slate-700">Enable breadcrumbs</span>
-                </label>
-              </div>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Logo Text</label>
+              <Input
+                value={navigationSettings.logoText || ""}
+                onChange={(e) => setNavigationSettings({
+                  ...navigationSettings,
+                  logoText: e.target.value
+                })}
+                placeholder="Your logo text"
+              />
             </div>
-
-            <Button
-              onClick={handleSaveNavigationSettings}
-              disabled={updateSettingsMutation.isPending}
-              className="w-full mt-6 bg-accent hover:bg-emerald-700"
-              data-testid="save-navigation-settings"
-            >
-              Save Navigation Settings
-            </Button>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Menu Items (JSON)</label>
+              <Textarea
+                value={JSON.stringify(navigationSettings.menuItems || [], null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    setNavigationSettings({
+                      ...navigationSettings,
+                      menuItems: parsed
+                    });
+                  } catch (error) {
+                    // Invalid JSON, keep current value
+                  }
+                }}
+                placeholder='["Home", "About", "Contact"]'
+                rows={4}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showLogo"
+                checked={navigationSettings.showLogo || false}
+                onCheckedChange={(checked) => setNavigationSettings({
+                  ...navigationSettings,
+                  showLogo: checked as boolean
+                })}
+              />
+              <label htmlFor="showLogo" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Show Logo
+              </label>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Footer Settings</CardTitle>
+            <CardDescription>
+              Configure your website footer content
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Footer Description</label>
+              <Textarea
+                value={footerDescription || ""}
+                onChange={(e) => setFooterDescription(e.target.value)}
+                placeholder="Enter your footer description text"
+                rows={4}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Contact Information</CardTitle>
+            <CardDescription>
+              Manage your contact details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                value={contactInfo.email || ""}
+                onChange={(e) => setContactInfo({
+                  ...contactInfo,
+                  email: e.target.value
+                })}
+                placeholder="contact@example.com"
+                type="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                value={contactInfo.phone || ""}
+                onChange={(e) => setContactInfo({
+                  ...contactInfo,
+                  phone: e.target.value
+                })}
+                placeholder="+1-555-0123"
+                type="tel"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Address</label>
+              <Textarea
+                value={contactInfo.address || ""}
+                onChange={(e) => setContactInfo({
+                  ...contactInfo,
+                  address: e.target.value
+                })}
+                placeholder="123 Street Name, City, State 12345"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Social Media (JSON)</label>
+              <Textarea
+                value={JSON.stringify(contactInfo.socialMedia || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    setContactInfo({
+                      ...contactInfo,
+                      socialMedia: parsed
+                    });
+                  } catch (error) {
+                    // Invalid JSON, keep current value
+                  }
+                }}
+                placeholder='{"twitter": "https://twitter.com/...", "facebook": "https://facebook.com/..."}'
+                rows={4}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Button
+        onClick={handleSaveAllSettings}
+        disabled={updateSettingsMutation.isPending}
+        className="w-full mt-6"
+        data-testid="save-all-settings"
+      >
+        Save All Settings
+      </Button>
     </div>
   );
 }

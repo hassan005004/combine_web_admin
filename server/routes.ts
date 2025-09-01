@@ -195,10 +195,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FAQ routes
-  app.get('/api/domains/:domainId/faqs', isAuthenticated, async (req, res) => {
+  app.get('/api/pages/:pageId/faqs', isAuthenticated, async (req, res) => {
     try {
-      const domainId = parseInt(req.params.domainId);
-      const faqs = await storage.getFaqsByDomain(domainId);
+      const pageId = parseInt(req.params.pageId);
+      const faqs = await storage.getFaqsByPage(pageId);
       res.json(faqs);
     } catch (error) {
       console.error("Error fetching FAQs:", error);
@@ -206,10 +206,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/domains/:domainId/faqs', isAuthenticated, async (req, res) => {
+  app.post('/api/pages/:pageId/faqs', isAuthenticated, async (req, res) => {
     try {
-      const domainId = parseInt(req.params.domainId);
-      const validatedData = insertFaqSchema.parse({ ...req.body, domainId });
+      const pageId = parseInt(req.params.pageId);
+      const validatedData = insertFaqSchema.parse({ ...req.body, pageId });
       const faq = await storage.createFaq(validatedData);
       res.status(201).json(faq);
     } catch (error) {
@@ -218,12 +218,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/pages/:pageId/faqs/:faqId', isAuthenticated, async (req, res) => {
+  app.put('/api/faqs/:id', isAuthenticated, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.pageId);
-      const faqId = parseInt(req.params.faqId);
+      const id = parseInt(req.params.id);
       const validatedData = insertFaqSchema.partial().parse(req.body);
-      const faq = await storage.updateFaq(pageId, faqId, validatedData);
+      const faq = await storage.updateFaq(id, validatedData);
       res.json(faq);
     } catch (error) {
       console.error("Error updating FAQ:", error);
@@ -231,15 +230,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/pages/:pageId/faqs/:faqId', isAuthenticated, async (req, res) => {
+  app.delete('/api/faqs/:id', isAuthenticated, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.pageId);
-      const faqId = parseInt(req.params.faqId);
-      await storage.deleteFaq(pageId, faqId);
+      const id = parseInt(req.params.id);
+      await storage.deleteFaq(id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting FAQ:", error);
       res.status(400).json({ message: "Failed to delete FAQ" });
+    }
+  });
+
+  app.put('/api/pages/:id/faqs-enabled', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { enabled } = req.body;
+      const page = await storage.updatePageFaqsEnabled(id, enabled);
+      res.json(page);
+    } catch (error) {
+      console.error("Error updating FAQ enabled:", error);
+      res.status(400).json({ message: "Failed to update FAQ setting" });
     }
   });
 

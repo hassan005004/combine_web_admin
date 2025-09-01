@@ -138,6 +138,26 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  const { data: pageFaqs } = useQuery({
+    queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"],
+    queryFn: () => apiRequest("GET", `/api/pages/${managingFaqsForPage?.id}/faqs`),
+    enabled: !!managingFaqsForPage?.id,
+  });
+
+  useEffect(() => {
+    if (pageFaqs) {
+      setFaqs(pageFaqs.map((faq: any) => ({
+        id: faq.id,
+        question: faq.question,
+        answer: faq.answer,
+        sortOrder: faq.sortOrder,
+        isActive: faq.isActive
+      })));
+    } else {
+      setFaqs([]);
+    }
+  }, [pageFaqs, managingFaqsForPage]);
+
   const toggleFaqsMutation = useMutation({
     mutationFn: async ({ pageId, enabled }: { pageId: number, enabled: boolean }) => {
       return apiRequest("PUT", `/api/pages/${pageId}/faqs-enabled`, { enabled });

@@ -55,6 +55,8 @@ export const domainSettings = pgTable("domain_settings", {
   domainId: serial("domain_id").references(() => domains.id),
   visibleSections: jsonb("visible_sections").default([]),
   navigationSettings: jsonb("navigation_settings").default({}),
+  footerDescription: text("footer_description"),
+  contactInfo: jsonb("contact_info").default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
