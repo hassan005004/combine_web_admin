@@ -88,6 +88,19 @@ export const pages = pgTable("pages", {
   metaTitle: text("meta_title"),
   metaDescription: text("meta_description"),
   status: varchar("status", { length: 20 }).default("draft"),
+  faqsEnabled: boolean("faqs_enabled").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// FAQs table
+export const faqs = pgTable("faqs", {
+  id: serial("id").primaryKey(),
+  pageId: serial("page_id").references(() => pages.id, { onDelete: "cascade" }),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  sortOrder: serial("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -99,10 +112,18 @@ export const domainsRelations = relations(domains, ({ many, one }) => ({
   seoSettings: one(seoSettings),
 }));
 
-export const pagesRelations = relations(pages, ({ one }) => ({
+export const pagesRelations = relations(pages, ({ one, many }) => ({
   domain: one(domains, {
     fields: [pages.domainId],
     references: [domains.id],
+  }),
+  faqs: many(faqs),
+}));
+
+export const faqsRelations = relations(faqs, ({ one }) => ({
+  page: one(pages, {
+    fields: [faqs.pageId],
+    references: [pages.id],
   }),
 }));
 
@@ -151,6 +172,12 @@ export const insertSeoSettingsSchema = createInsertSchema(seoSettings).omit({
   updatedAt: true,
 });
 
+export const insertFaqSchema = createInsertSchema(faqs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -163,3 +190,5 @@ export type DomainSettings = typeof domainSettings.$inferSelect;
 export type InsertDomainSettings = z.infer<typeof insertDomainSettingsSchema>;
 export type SeoSettings = typeof seoSettings.$inferSelect;
 export type InsertSeoSettings = z.infer<typeof insertSeoSettingsSchema>;
+export type Faq = typeof faqs.$inferSelect;
+export type InsertFaq = z.infer<typeof insertFaqSchema>;

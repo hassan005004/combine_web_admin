@@ -4,6 +4,7 @@ import {
   pages,
   domainSettings,
   seoSettings,
+  faqs,
   type User,
   type UpsertUser,
   type Domain,
@@ -14,9 +15,10 @@ import {
   type InsertDomainSettings,
   type SeoSettings,
   type InsertSeoSettings,
+  type InsertFaq,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -46,7 +48,14 @@ export interface IStorage {
 
   // SEO settings operations
   getSeoSettings(domainId: number): Promise<SeoSettings | undefined>;
-  upsertSeoSettings(settings: InsertSeoSettings): Promise<SeoSettings>;
+  updateSeoSettings(domainId: number, data: InsertSeoSettings): Promise<SeoSettings>;
+
+  // FAQ operations
+  getFaqsByPage(pageId: number): Promise<any[]>; // Assuming 'any[]' for now, replace with actual type later
+  createFaq(data: InsertFaq): Promise<any>; // Assuming 'any' for now
+  updateFaq(id: number, data: Partial<InsertFaq>): Promise<any>; // Assuming 'any' for now
+  deleteFaq(id: number): Promise<void>;
+  updatePageFaqsEnabled(pageId: number, enabled: boolean): Promise<any>; // Assuming 'any' for now
 }
 
 export class DatabaseStorage implements IStorage {
@@ -167,26 +176,57 @@ export class DatabaseStorage implements IStorage {
 
   // SEO settings operations
   async getSeoSettings(domainId: number): Promise<SeoSettings | undefined> {
-    const [settings] = await db
-      .select()
-      .from(seoSettings)
-      .where(eq(seoSettings.domainId, domainId));
+    const [settings] = await db.select().from(seoSettings).where(eq(seoSettings.domainId, domainId));
     return settings;
   }
 
-  async upsertSeoSettings(settings: InsertSeoSettings): Promise<SeoSettings> {
-    const [upsertedSettings] = await db
-      .insert(seoSettings)
-      .values(settings)
-      .onConflictDoUpdate({
-        target: seoSettings.domainId,
-        set: {
-          ...settings,
-          updatedAt: new Date(),
-        },
-      })
+  async updateSeoSettings(domainId: number, data: InsertSeoSettings): Promise<SeoSettings> {
+    const existing = await this.getSeoSettings(domainId);
+
+    if (existing) {
+      const updated = await db.update(seoSettings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(seoSettings.domainId, domainId))
+        .returning();
+      return updated[0];
+    } else {
+      const created = await db.insert(seoSettings)
+        .values({ ...data, domainId })
+        .returning();
+      return created[0];
+    }
+  }
+
+  // FAQ operations
+  async getFaqsByPage(pageId: number): Promise<any[]> {
+    return await db.select().from(faqs)
+      .where(eq(faqs.pageId, pageId))
+      .orderBy(faqs.sortOrder, faqs.createdAt);
+  }
+
+  async createFaq(data: InsertFaq): Promise<any> {
+    const created = await db.insert(faqs).values(data).returning();
+    return created[0];
+  }
+
+  async updateFaq(id: number, data: Partial<InsertFaq>): Promise<any> {
+    const updated = await db.update(faqs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(faqs.id, id))
       .returning();
-    return upsertedSettings;
+    return updated[0];
+  }
+
+  async deleteFaq(id: number): Promise<void> {
+    await db.delete(faqs).where(eq(faqs.id, id));
+  }
+
+  async updatePageFaqsEnabled(pageId: number, enabled: boolean): Promise<any> {
+    const updated = await db.update(pages)
+      .set({ faqsEnabled: enabled, updatedAt: new Date() })
+      .where(eq(pages.id, pageId))
+      .returning();
+    return updated[0];
   }
 }
 

@@ -10,19 +10,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPageSchema, Page, Domain } from "@shared/schema";
+import { insertPageSchema, Page, Domain, Faq, insertFaqSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Copy, Trash2, FileText } from "lucide-react";
+import { Plus, Edit, Copy, Trash2, FileText, HelpCircle } from "lucide-react";
 import { z } from "zod";
 
 const pageFormSchema = insertPageSchema;
+const faqFormSchema = insertFaqSchema.omit({ pageId: true });
 
 interface SectionData {
   key: string;
   value: string;
 }
 
+interface FaqData {
+  id?: number;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 type PageFormData = z.infer<typeof pageFormSchema>;
+type FaqFormData = z.infer<typeof faqFormSchema>;
 
 interface PagesProps {
   selectedDomainId: number | null;
@@ -34,6 +44,9 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [sections, setSections] = useState<SectionData[]>([]);
+  const [isFaqDialogOpen, setIsFaqDialogOpen] = useState(false);
+  const [managingFaqsForPage, setManagingFaqsForPage] = useState<Page | null>(null);
+  const [faqs, setFaqs] = useState<FaqData[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -45,6 +58,20 @@ export default function Pages({ selectedDomainId }: PagesProps) {
   const { data: pages = [], isLoading } = useQuery<Page[]>({
     queryKey: ["/api/domains", selectedDomainId, "pages"],
     enabled: !!selectedDomainId,
+  });
+
+  const { data: pageFaqs = [] } = useQuery<Faq[]>({
+    queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"],
+    enabled: !!managingFaqsForPage?.id,
+    onSuccess: (data) => {
+      setFaqs(data.map(faq => ({
+        id: faq.id,
+        question: faq.question,
+        answer: faq.answer,
+        sortOrder: faq.sortOrder,
+        isActive: faq.isActive
+      })));
+    }
   });
 
   const createPageMutation = useMutation({
@@ -111,6 +138,74 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     },
   });
 
+  const toggleFaqsMutation = useMutation({
+    mutationFn: async ({ pageId, enabled }: { pageId: number, enabled: boolean }) => {
+      return apiRequest("PUT", `/api/pages/${pageId}/faqs-enabled`, { enabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/domains", selectedDomainId, "pages"] });
+      toast({ title: "Success", description: "FAQ setting updated successfully!" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to update FAQ setting.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const createFaqMutation = useMutation({
+    mutationFn: async (data: FaqFormData) => {
+      return apiRequest("POST", `/api/pages/${managingFaqsForPage?.id}/faqs`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"] });
+      toast({ title: "Success", description: "FAQ added successfully!" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to add FAQ.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const updateFaqMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number, data: Partial<FaqFormData> }) => {
+      return apiRequest("PUT", `/api/faqs/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"] });
+      toast({ title: "Success", description: "FAQ updated successfully!" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to update FAQ.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const deleteFaqMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/faqs/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"] });
+      toast({ title: "Success", description: "FAQ deleted successfully!" });
+    },
+    onError: () => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete FAQ.",
+        variant: "destructive"
+      });
+    },
+  });
+
   const deletePageMutation = useMutation({
     mutationFn: async (pageId: number) => {
       return apiRequest("DELETE", `/api/pages/${pageId}`);
@@ -139,6 +234,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       metaTitle: "",
       metaDescription: "",
       status: "draft",
+      faqsEnabled: false,
     },
   });
 
@@ -198,6 +294,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       metaTitle: page.metaTitle || "",
       metaDescription: page.metaDescription || "",
       status: page.status,
+      faqsEnabled: page.faqsEnabled || false,
     });
     setIsEditorOpen(true);
   };
@@ -214,6 +311,62 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     });
     setEditingPage(null);
     setIsEditorOpen(true);
+  };
+
+  const handleManageFaqs = (page: Page) => {
+    setManagingFaqsForPage(page);
+    setIsFaqDialogOpen(true);
+  };
+
+  const addFaq = () => {
+    const newFaq = {
+      question: "",
+      answer: "",
+      sortOrder: faqs.length,
+      isActive: true
+    };
+    setFaqs([...faqs, newFaq]);
+  };
+
+  const updateFaq = (index: number, field: keyof FaqData, value: string | number | boolean) => {
+    const newFaqs = [...faqs];
+    newFaqs[index] = { ...newFaqs[index], [field]: value };
+    setFaqs(newFaqs);
+  };
+
+  const removeFaq = (index: number) => {
+    const faq = faqs[index];
+    if (faq.id) {
+      deleteFaqMutation.mutate(faq.id);
+    }
+    setFaqs(faqs.filter((_, i) => i !== index));
+  };
+
+  const saveFaqs = async () => {
+    for (const faq of faqs) {
+      if (faq.question && faq.answer) {
+        if (faq.id) {
+          await updateFaqMutation.mutateAsync({ 
+            id: faq.id, 
+            data: {
+              question: faq.question,
+              answer: faq.answer,
+              sortOrder: faq.sortOrder,
+              isActive: faq.isActive
+            }
+          });
+        } else {
+          await createFaqMutation.mutateAsync({
+            question: faq.question,
+            answer: faq.answer,
+            sortOrder: faq.sortOrder,
+            isActive: faq.isActive
+          });
+        }
+      }
+    }
+    setIsFaqDialogOpen(false);
+    setManagingFaqsForPage(null);
   };
 
 
@@ -511,6 +664,7 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Page Name</th>
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Title</th>
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Status</th>
+                    <th className="text-left py-4 px-6 font-medium text-slate-700">FAQs</th>
                     <th className="text-left py-4 px-6 font-medium text-slate-700">Last Modified</th>
                     <th className="text-right py-4 px-6 font-medium text-slate-700">Actions</th>
                   </tr>
@@ -539,6 +693,32 @@ export default function Pages({ selectedDomainId }: PagesProps) {
                         >
                           {page.status}
                         </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center space-x-2">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={page.faqsEnabled || false}
+                              onChange={(e) => toggleFaqsMutation.mutate({
+                                pageId: page.id,
+                                enabled: e.target.checked
+                              })}
+                              className="sr-only peer"
+                            />
+                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                          {page.faqsEnabled && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleManageFaqs(page)}
+                              data-testid={`manage-faqs-${page.id}`}
+                            >
+                              <HelpCircle className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-6 text-slate-600">
                         {new Date(page.updatedAt!).toLocaleDateString()}
@@ -580,6 +760,118 @@ export default function Pages({ selectedDomainId }: PagesProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* FAQ Management Dialog */}
+      <Dialog open={isFaqDialogOpen} onOpenChange={setIsFaqDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Manage FAQs for {managingFaqsForPage?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-medium text-slate-800">Frequently Asked Questions</h4>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addFaq}
+                data-testid="add-faq-button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add FAQ
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              {faqs.map((faq, index) => (
+                <div key={index} className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 block mb-1">Question</label>
+                      <Input
+                        value={faq.question}
+                        onChange={(e) => updateFaq(index, 'question', e.target.value)}
+                        placeholder="Enter the frequently asked question"
+                        className="border-2 border-slate-300"
+                        data-testid={`faq-question-${index}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 block mb-1">Answer</label>
+                      <Textarea
+                        value={faq.answer}
+                        onChange={(e) => updateFaq(index, 'answer', e.target.value)}
+                        placeholder="Enter the answer (HTML supported)"
+                        rows={4}
+                        className="border-2 border-slate-300"
+                        data-testid={`faq-answer-${index}`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={faq.isActive}
+                            onChange={(e) => updateFaq(index, 'isActive', e.target.checked)}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-slate-700">Active</span>
+                        </label>
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm text-slate-700">Sort Order:</label>
+                          <Input
+                            type="number"
+                            value={faq.sortOrder}
+                            onChange={(e) => updateFaq(index, 'sortOrder', parseInt(e.target.value) || 0)}
+                            className="w-20 border-2 border-slate-300"
+                            min="0"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFaq(index)}
+                        data-testid={`remove-faq-${index}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {faqs.length === 0 && (
+                <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg">
+                  <p>No FAQs yet. Click "Add FAQ" to get started.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-4 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsFaqDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                onClick={saveFaqs}
+                disabled={createFaqMutation.isPending || updateFaqMutation.isPending}
+              >
+                Save FAQs
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

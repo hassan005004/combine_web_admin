@@ -2,7 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, loginUser } from "./auth";
-import { insertDomainSchema, insertPageSchema, insertDomainSettingsSchema, insertSeoSettingsSchema, insertUserSchema } from "@shared/schema";
+import { 
+  insertUserSchema, 
+  insertDomainSchema, 
+  insertPageSchema, 
+  insertDomainSettingsSchema, 
+  insertSeoSettingsSchema,
+  insertFaqSchema
+} from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -187,6 +194,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FAQ routes
+  app.get('/api/domains/:domainId/faqs', isAuthenticated, async (req, res) => {
+    try {
+      const domainId = parseInt(req.params.domainId);
+      const faqs = await storage.getFaqsByDomain(domainId);
+      res.json(faqs);
+    } catch (error) {
+      console.error("Error fetching FAQs:", error);
+      res.status(500).json({ message: "Failed to fetch FAQs" });
+    }
+  });
+
+  app.post('/api/domains/:domainId/faqs', isAuthenticated, async (req, res) => {
+    try {
+      const domainId = parseInt(req.params.domainId);
+      const validatedData = insertFaqSchema.parse({ ...req.body, domainId });
+      const faq = await storage.createFaq(validatedData);
+      res.status(201).json(faq);
+    } catch (error) {
+      console.error("Error creating FAQ:", error);
+      res.status(400).json({ message: "Failed to create FAQ" });
+    }
+  });
+
+  app.put('/api/pages/:pageId/faqs/:faqId', isAuthenticated, async (req, res) => {
+    try {
+      const pageId = parseInt(req.params.pageId);
+      const faqId = parseInt(req.params.faqId);
+      const validatedData = insertFaqSchema.partial().parse(req.body);
+      const faq = await storage.updateFaq(pageId, faqId, validatedData);
+      res.json(faq);
+    } catch (error) {
+      console.error("Error updating FAQ:", error);
+      res.status(400).json({ message: "Failed to update FAQ" });
+    }
+  });
+
+  app.delete('/api/pages/:pageId/faqs/:faqId', isAuthenticated, async (req, res) => {
+    try {
+      const pageId = parseInt(req.params.pageId);
+      const faqId = parseInt(req.params.faqId);
+      await storage.deleteFaq(pageId, faqId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting FAQ:", error);
+      res.status(400).json({ message: "Failed to delete FAQ" });
+    }
+  });
+
   // User routes
   app.get('/api/users', isAuthenticated, async (req, res) => {
     try {
@@ -219,7 +275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const domains = await storage.getDomains();
       const totalDomains = domains.length;
-      
+
       let totalPages = 0;
       for (const domain of domains) {
         const pages = await storage.getPagesByDomain(domain.id);
