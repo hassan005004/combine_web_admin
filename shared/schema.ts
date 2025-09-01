@@ -8,6 +8,7 @@ import {
   varchar,
   boolean,
   serial,
+  integer,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -44,6 +45,10 @@ export const domains = pgTable("domains", {
   name: varchar("name", { length: 255 }).notNull().unique(),
   title: text("title"),
   description: text("description"),
+  footerDescription: text("footer_description"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  contactAddress: text("contact_address"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -98,13 +103,13 @@ export const pages = pgTable("pages", {
 // FAQs table
 export const faqs = pgTable("faqs", {
   id: serial("id").primaryKey(),
-  pageId: serial("page_id").references(() => pages.id, { onDelete: "cascade" }),
+  pageId: integer("page_id").references(() => pages.id, { onDelete: "cascade" }).notNull(),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
-  sortOrder: serial("sort_order").default(0),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Relations
@@ -149,6 +154,8 @@ export const insertDomainSchema = createInsertSchema(domains).omit({
   createdAt: true,
   updatedAt: true,
 });
+
+export const updateDomainSchema = insertDomainSchema.partial();
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,

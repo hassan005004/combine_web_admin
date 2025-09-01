@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,19 +60,25 @@ export default function Pages({ selectedDomainId }: PagesProps) {
     enabled: !!selectedDomainId,
   });
 
-  const { data: pageFaqs = [] } = useQuery<Faq[]>({
+  const { data: pageFaqs } = useQuery({
     queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"],
+    queryFn: () => apiRequest("GET", `/api/pages/${managingFaqsForPage?.id}/faqs`),
     enabled: !!managingFaqsForPage?.id,
-    onSuccess: (data) => {
-      setFaqs(data.map(faq => ({
+  });
+
+  useEffect(() => {
+    if (pageFaqs) {
+      setFaqs(pageFaqs.map((faq: any) => ({
         id: faq.id,
         question: faq.question,
         answer: faq.answer,
         sortOrder: faq.sortOrder,
         isActive: faq.isActive
       })));
+    } else {
+      setFaqs([]);
     }
-  });
+  }, [pageFaqs, managingFaqsForPage]);
 
   const createPageMutation = useMutation({
     mutationFn: async (data: PageFormData) => {
@@ -137,26 +143,6 @@ export default function Pages({ selectedDomainId }: PagesProps) {
       });
     },
   });
-
-  const { data: pageFaqs } = useQuery({
-    queryKey: ["/api/pages", managingFaqsForPage?.id, "faqs"],
-    queryFn: () => apiRequest("GET", `/api/pages/${managingFaqsForPage?.id}/faqs`),
-    enabled: !!managingFaqsForPage?.id,
-  });
-
-  useEffect(() => {
-    if (pageFaqs) {
-      setFaqs(pageFaqs.map((faq: any) => ({
-        id: faq.id,
-        question: faq.question,
-        answer: faq.answer,
-        sortOrder: faq.sortOrder,
-        isActive: faq.isActive
-      })));
-    } else {
-      setFaqs([]);
-    }
-  }, [pageFaqs, managingFaqsForPage]);
 
   const toggleFaqsMutation = useMutation({
     mutationFn: async ({ pageId, enabled }: { pageId: number, enabled: boolean }) => {

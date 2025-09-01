@@ -1,12 +1,12 @@
-
 import { db } from "./db";
 import { domains, pages, faqs, domainSettings } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 async function seed() {
   try {
     // Create test domain if it doesn't exist
     const existingDomains = await db.select().from(domains);
-    
+
     if (existingDomains.length === 0) {
       const [domain] = await db.insert(domains).values({
         name: "test-domain.com",
@@ -56,37 +56,37 @@ async function seed() {
 
       console.log("Created pages:", [homePage, aboutPage, contactPage]);
 
-      // Create test FAQs
-      await db.insert(faqs).values([
-        {
-          pageId: homePage.id,
-          question: "What is this website about?",
-          answer: "This is a test website built with our CMS platform.",
-          sortOrder: 1,
-          isActive: true
-        },
-        {
-          pageId: homePage.id,
-          question: "How do I get started?",
-          answer: "You can start by exploring our features and creating your own content.",
-          sortOrder: 2,
-          isActive: true
-        },
-        {
-          pageId: aboutPage.id,
-          question: "Who are we?",
-          answer: "We are a team of developers building awesome web solutions.",
-          sortOrder: 1,
-          isActive: true
-        },
-        {
-          pageId: aboutPage.id,
-          question: "What do we do?",
-          answer: "We create powerful content management systems and web applications.",
-          sortOrder: 2,
-          isActive: true
-        }
-      ]);
+      // Add dummy FAQs for the home page
+      const homePageData = await db.query.pages.findFirst({
+        where: eq(pages.name, "home")
+      });
+
+      if (homePageData) {
+        await db.insert(faqs).values([
+          {
+            pageId: homePageData.id,
+            question: "What is this website about?",
+            answer: "This is a content management system that helps you create and manage websites with ease.",
+            sortOrder: 0,
+            isActive: true
+          },
+          {
+            pageId: homePageData.id,
+            question: "How do I get started?",
+            answer: "Simply create an account, add your domain, and start creating pages with our intuitive interface.",
+            sortOrder: 1,
+            isActive: true
+          },
+          {
+            pageId: homePageData.id,
+            question: "Is there customer support?",
+            answer: "Yes! We provide 24/7 customer support through our help desk and live chat.",
+            sortOrder: 2,
+            isActive: true
+          }
+        ]).onConflictDoNothing();
+      }
+
 
       // Create domain settings
       await db.insert(domainSettings).values({
