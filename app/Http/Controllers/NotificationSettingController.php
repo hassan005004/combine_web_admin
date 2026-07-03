@@ -3,28 +3,37 @@
 namespace App\Http\Controllers;
 
 use App\Models\NotificationSetting;
+use App\Models\Domain;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class NotificationSettingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $domain = app('activeDomain');
-        $notificationSettings = NotificationSetting::where('domain_id', $domain->id)->latest()->paginate(10);
-        return view('notification-settings.index', compact('notificationSettings', 'domain'));
+        $selectedDomainId = $request->integer('domain_id') ?: null;
+        $selectedDomain = $selectedDomainId ? Domain::find($selectedDomainId) : null;
+        $notificationSettings = NotificationSetting::with('domain')
+            ->when($selectedDomainId, fn ($query) => $query->where('domain_id', $selectedDomainId))
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('notification-settings.index', compact('notificationSettings', 'selectedDomain', 'selectedDomainId'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        $domain = app('activeDomain');
-        return view('notification-settings.form', compact('domain'));
+        $domains = Domain::orderBy('title')->get();
+        $selectedDomainId = $request->integer('domain_id') ?: null;
+
+        return view('notification-settings.form', compact('domains', 'selectedDomainId'));
     }
 
     public function store(Request $request)
     {
-        $domain = app('activeDomain');
         $validated = $request->validate([
+            'domain_id' => ['required', 'exists:domains,id'],
             'services_file' => 'required|file|mimes:json,txt,pem|max:2048', // validate file type and size
             'token' => 'nullable|string',
             'token_expiry' => 'nullable|date',
@@ -35,25 +44,22 @@ class NotificationSettingController extends Controller
             $validated['services_file'] = $path;
         }
 
-        $validated['domain_id'] = $domain->id;
         NotificationSetting::create($validated);
 
-        return redirect()->route('notification-settings.index')->with('success', 'Notification settings saved.');
+        return redirect()->route('notification-settings.index', ['domain_id' => $validated['domain_id']])->with('success', 'Notification settings saved.');
     }
 
     public function edit(NotificationSetting $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-        return view('notification-settings.form', compact('notification', 'domain'));
+        $domains = Domain::orderBy('title')->get();
+
+        return view('notification-settings.form', compact('notification', 'domains'));
     }
 
     public function update(Request $request, NotificationSetting $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
         $validated = $request->validate([
+            'domain_id' => ['required', 'exists:domains,id'],
             'services_file' => 'nullable|file|mimes:json,txt,pem|max:2048',
             'token' => 'nullable|string',
             'token_expiry' => 'nullable|date',
@@ -71,15 +77,13 @@ class NotificationSettingController extends Controller
 
         $notification->update($validated);
 
-        return redirect()->route('notification-settings.index')->with('success', 'Notification updated.');
+        return redirect()->route('notification-settings.index', ['domain_id' => $validated['domain_id']])->with('success', 'Notification updated.');
     }
 
     public function destroy(NotificationSetting $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
+        $domainId = $notification->domain_id;
         $notification->delete();
-        return redirect()->route('notification-settings.index')->with('success', 'Notification deleted.');
+        return redirect()->route('notification-settings.index', ['domain_id' => $domainId])->with('success', 'Notification deleted.');
     }
 }

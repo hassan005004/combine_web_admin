@@ -11,8 +11,14 @@ class UserDevice extends Model
 
     protected $fillable = [
         'domain_id',
+        'email',
         'device_id',
         'fcm_token',
+        'last_seen_at',
+    ];
+
+    protected $casts = [
+        'last_seen_at' => 'datetime',
     ];
 
     // Relationships

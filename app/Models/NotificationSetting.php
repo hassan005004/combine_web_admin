@@ -16,7 +16,9 @@ class NotificationSetting extends Model
         'token_expiry',
     ];
 
-    protected $dates = ['token_expiry'];
+    protected $casts = [
+        'token_expiry' => 'datetime',
+    ];
 
     // Relationships
     public function domain()

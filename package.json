@@ -25,12 +25,15 @@
         "@alpinejs/mask": "^3.14.8",
         "@alpinejs/morph": "^3.14.8",
         "@alpinejs/persist": "^3.14.8",
+        "@vitejs/plugin-react": "^4.7.0",
         "@vue/reactivity": "^3.5.13",
         "alpinejs": "^3.14.8",
         "chart.js": "^4.4.7",
         "chartjs-adapter-moment": "^1.0.1",
         "flatpickr": "^4.6.13",
         "moment": "^2.30.1",
-        "nprogress": "^0.2.0"
+        "nprogress": "^0.2.0",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7"
     }
 }

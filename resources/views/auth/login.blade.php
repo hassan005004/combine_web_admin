@@ -32,11 +32,7 @@
         </div>
     </form>
     <x-validation-errors class="mt-4" />   
-    <!-- Footer -->
     <div class="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
-        <div class="text-sm">
-            {{ __('Don\'t you have an account?') }} <a class="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400" href="{{ route('register') }}">{{ __('Sign Up') }}</a>
-        </div>
         <!-- Warning -->
         <div class="mt-5">
             <div class="bg-yellow-500/20 text-yellow-700 px-3 py-2 rounded-lg">

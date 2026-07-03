@@ -135,3 +135,189 @@
     border-color: var(--color-gray-200, currentColor);
   }
 }
+
+@layer components {
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-gray-200);
+  }
+
+  .dark .shimmer {
+    background: var(--color-gray-700);
+  }
+
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+    animation: shimmer 1.35s infinite;
+  }
+
+  .dark .shimmer::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.12), transparent);
+  }
+
+  .admin-sidebar {
+    width: 16rem !important;
+    min-width: 16rem !important;
+    max-width: 16rem !important;
+    height: 100dvh;
+    flex-shrink: 0;
+    overflow-y: auto;
+    background: #fff;
+    padding: 1rem;
+    border-radius: 0 1rem 1rem 0;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .dark .admin-sidebar {
+    background: var(--color-gray-800);
+  }
+
+  .admin-sidebar__brand {
+    margin-bottom: 1.25rem;
+    padding: 0.5rem;
+  }
+
+  .admin-sidebar__logo,
+  .admin-sidebar__link {
+    display: flex;
+    align-items: center;
+  }
+
+  .admin-sidebar__logo {
+    gap: 0.75rem;
+    color: var(--color-gray-800);
+    font-weight: 700;
+  }
+
+  .dark .admin-sidebar__logo {
+    color: var(--color-gray-100);
+  }
+
+  .admin-sidebar__section {
+    padding-left: 0.75rem;
+    margin: 1.25rem 0 0.75rem;
+    color: var(--color-gray-400);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .admin-sidebar__switcher {
+    padding: 0 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-gray-100);
+  }
+
+  .dark .admin-sidebar__switcher {
+    border-bottom-color: var(--color-gray-700);
+  }
+
+  .admin-sidebar__switcher-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--color-gray-400);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .admin-sidebar__switcher-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .admin-sidebar__select {
+    width: 100%;
+    min-width: 0;
+    border-radius: 0.5rem;
+    border-color: var(--color-gray-300);
+    background: var(--color-gray-50);
+    color: var(--color-gray-800);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .dark .admin-sidebar__select {
+    border-color: var(--color-gray-700);
+    background: var(--color-gray-900);
+    color: var(--color-gray-100);
+  }
+
+  .admin-sidebar__return {
+    display: inline-flex;
+    width: 2.625rem;
+    height: 2.625rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    background: var(--color-gray-900);
+    color: #fff;
+  }
+
+  .dark .admin-sidebar__return {
+    background: var(--color-gray-100);
+    color: var(--color-gray-900);
+  }
+
+  .admin-sidebar__link {
+    gap: 1rem;
+    padding: 0.625rem 0.75rem 0.625rem 1rem;
+    margin-bottom: 0.125rem;
+    border-radius: 0.5rem;
+    color: var(--color-gray-800);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .dark .admin-sidebar__link {
+    color: var(--color-gray-100);
+  }
+
+  .admin-sidebar__link:hover {
+    background: var(--color-gray-100);
+  }
+
+  .dark .admin-sidebar__link:hover {
+    background: var(--color-gray-700);
+  }
+
+  .admin-sidebar__link--active {
+    background: rgb(132 112 255 / 0.12);
+    color: var(--color-violet-700);
+  }
+
+  .admin-sidebar__icon {
+    flex-shrink: 0;
+    fill: currentColor;
+    color: var(--color-gray-400);
+  }
+
+  .admin-sidebar__link--active .admin-sidebar__icon {
+    color: var(--color-violet-500);
+  }
+
+  .admin-sidebar__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-sidebar__text,
+  .admin-sidebar__title {
+    display: inline !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

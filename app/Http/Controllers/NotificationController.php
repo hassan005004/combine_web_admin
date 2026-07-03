@@ -5,50 +5,47 @@ namespace App\Http\Controllers;
 use App\Models\Notification;
 use App\Models\NotificationLog;
 use App\Models\NotificationSetting;
-use App\Models\User;
+use App\Models\Domain;
 use App\Models\UserDevice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Notification as LaravelNotification;
-use App\Notifications\SendUserNotification; // custom notification class
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 class NotificationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $domain = app('activeDomain');
-        $notifications = Notification::where('domain_id', $domain->id)
+        $selectedDomainId = $request->integer('domain_id') ?: null;
+        $selectedDomain = $selectedDomainId ? Domain::find($selectedDomainId) : null;
+        $notifications = Notification::with('logs')
+            ->when($selectedDomainId, fn ($query) => $query->where('domain_id', $selectedDomainId))
             ->latest()
             ->get();
 
-        return view('notifications.index', compact('notifications'));
+        return view('notifications.index', compact('notifications', 'selectedDomain', 'selectedDomainId'));
     }
 
     public function show(Notification $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
         return view('notifications.show', compact('notification'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('notifications.form');
+        $domains = Domain::orderBy('title')->get();
+        $selectedDomainId = $request->integer('domain_id') ?: null;
+
+        return view('notifications.form', compact('domains', 'selectedDomainId'));
     }
 
     public function store(Request $request)
     {
-        $domain = app('activeDomain');
-
         $validated = $request->validate([
+            'domain_id' => ['required', 'exists:domains,id'],
             'title' => 'required|string|max:255',
             'message' => 'required|string',
         ]);
 
-        $validated['domain_id'] = $domain->id;
         $validated['sent_at'] = now();
 
         $notification = Notification::create($validated);
@@ -56,23 +53,20 @@ class NotificationController extends Controller
         // Send to all users of this domain
         $this->sendToAllUsers($notification);
 
-        return redirect()->route('notifications.index')->with('success', 'Notification sent successfully.');
+        return redirect()->route('notifications.index', ['domain_id' => $validated['domain_id']])->with('success', 'Notification sent successfully.');
     }
 
     public function edit(Notification $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
+        $domains = Domain::orderBy('title')->get();
 
-        return view('notifications.form', compact('notification'));
+        return view('notifications.form', compact('notification', 'domains'));
     }
 
     public function update(Request $request, Notification $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
         $validated = $request->validate([
+            'domain_id' => ['required', 'exists:domains,id'],
             'title' => 'required|string|max:255',
             'message' => 'required|string',
         ]);
@@ -84,14 +78,11 @@ class NotificationController extends Controller
 
         $notification->update(['sent_at' => now()]);
 
-        return redirect()->route('notifications.index')->with('success', 'Notification updated and resent.');
+        return redirect()->route('notifications.index', ['domain_id' => $validated['domain_id']])->with('success', 'Notification updated and resent.');
     }
 
     public function resend(Notification $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
         $this->sendToAllUsers($notification);
 
         $notification->update(['sent_at' => now()]);
@@ -101,22 +92,20 @@ class NotificationController extends Controller
 
     public function destroy(Notification $notification)
     {
-        $domain = app('activeDomain');
-        abort_unless($notification->domain_id === $domain->id, 403);
-
+        $domainId = $notification->domain_id;
         $notification->delete();
 
-        return redirect()->route('notifications.index')->with('success', 'Notification deleted successfully.');
+        return redirect()->route('notifications.index', ['domain_id' => $domainId])->with('success', 'Notification deleted successfully.');
     }
 
-    private function sendToAllUsers(Notification $notification)
+    public function sendToAllUsers(Notification $notification)
     {
-        $domain = app('activeDomain');
+        $domainId = $notification->domain_id;
         
         // Get Firebase settings for this domain
-        $settings = NotificationSetting::where('domain_id', $domain->id)->first();
+        $settings = NotificationSetting::where('domain_id', $domainId)->first();
         if (!$settings || !Storage::disk('public')->exists($settings->services_file)) {
-            \Log::warning("Missing Firebase service file for domain ID {$domain->id}");
+            \Log::warning("Missing Firebase service file for domain ID {$domainId}");
             return;
         }
 
@@ -127,19 +116,17 @@ class NotificationController extends Controller
         // Get access token
         $accessToken = $this->getFirebaseAccessToken($serviceAccount);
 
-        // Get all user tokens for this domain
-        $tokens = UserDevice::where('domain_id', $domain->id)
+        // Get all saved FCM tokens for this entry.
+        $devices = UserDevice::where('domain_id', $domainId)
             ->whereNotNull('fcm_token')
-            ->pluck('fcm_token')
-            ->toArray();
+            ->get(['id', 'fcm_token']);
 
-        if (empty($tokens)) {
-            \Log::info("No FCM tokens found for domain ID {$domain->id}");
+        if ($devices->isEmpty()) {
+            \Log::info("No FCM tokens found for domain ID {$domainId}");
             return;
         }
 
-        // Send notification in batches
-        $this->sendFirebaseNotifications($notification, $tokens, $notification->title, $notification->message, $accessToken, $serviceAccount['project_id']);
+        $this->sendFirebaseNotifications($notification, $devices, $notification->title, $notification->message, $accessToken, $serviceAccount['project_id']);
     }
 
 
@@ -177,15 +164,15 @@ class NotificationController extends Controller
         return $response->json('access_token');
     }
 
-    private function sendFirebaseNotifications(Notification $notification, array $tokens, string $title, string $body, string $accessToken, string $projectId)
+    private function sendFirebaseNotifications(Notification $notification, $devices, string $title, string $body, string $accessToken, string $projectId)
     {
         $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
-        foreach (array_chunk($tokens, 100) as $chunk) { // FCM recommends batches
-            foreach ($chunk as $token) {
+        foreach ($devices->chunk(100) as $chunk) {
+            foreach ($chunk as $device) {
                 $response = Http::withToken($accessToken)->post($url, [
                     'message' => [
-                        'token' => $token,
+                        'token' => $device->fcm_token,
                         'notification' => [
                             'title' => $title,
                             'body' => $body,
@@ -202,8 +189,8 @@ class NotificationController extends Controller
                 // Log each attempt
                 NotificationLog::create([
                     'notification_id' => $notification->id,
-                    'user_id' => UserDevice::where('fcm_token', $token)->value('id'),
-                    'fcm_token' => $token,
+                    'user_id' => $device->id,
+                    'fcm_token' => $device->fcm_token,
                     'success' => $success,
                     'response' => $errorReason, 
                 ]);

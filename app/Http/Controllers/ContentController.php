@@ -28,7 +28,7 @@ class ContentController extends Controller
         ]);
 
         Content::create($validated);
-        return redirect()->route('content.index')->with('success', 'Content created.');
+        return redirect()->route('contents.index')->with('success', 'Content created.');
     }
 
     public function edit(Content $content)
@@ -46,12 +46,12 @@ class ContentController extends Controller
         ]);
 
         $content->update($validated);
-        return redirect()->route('content.index')->with('success', 'Content updated.');
+        return redirect()->route('contents.index')->with('success', 'Content updated.');
     }
 
     public function destroy(Content $content)
     {
         $content->delete();
-        return redirect()->route('content.index')->with('success', 'Content deleted.');
+        return redirect()->route('contents.index')->with('success', 'Content deleted.');
     }
 }

@@ -11,13 +11,26 @@ class Domain extends Model
 
     protected $fillable = [
         'title',
+        'entry_type',
         'url',
+        'google_play_url',
+        'app_store_url',
         'application_id',
+        'cache_ttl_hours',
         'seo_title',
         'seo_description',
         'seo_keywords',
+        'privacy_policy',
+        'terms_conditions',
+        'support_policy',
+        'about_us',
+        'ads_settings',
         'primary_color',
         'secondary_color',
+    ];
+
+    protected $casts = [
+        'ads_settings' => 'array',
     ];
 
     // Relationships
@@ -39,5 +52,20 @@ class Domain extends Model
     public function userDevices()
     {
         return $this->hasMany(UserDevice::class);
+    }
+
+    public function memberships()
+    {
+        return $this->hasMany(AppMembership::class);
+    }
+
+    public function membershipFeatures()
+    {
+        return $this->hasMany(MembershipFeature::class);
+    }
+
+    public function membershipPlans()
+    {
+        return $this->hasMany(MembershipPlan::class);
     }
 }
