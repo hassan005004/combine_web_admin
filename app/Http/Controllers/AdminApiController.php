@@ -8,8 +8,12 @@ use App\Models\MembershipFeature;
 use App\Models\MembershipPlan;
 use App\Models\Notification;
 use App\Models\NotificationSetting;
+use App\Models\EntryNote;
+use App\Models\StaffUserEntity;
+use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -52,6 +56,9 @@ class AdminApiController extends Controller
     public function storeEntry(Request $request)
     {
         $data = $this->validateEntry($request);
+        $data['application_id'] = $data['application_id'] ?: null;
+        $data['primary_color'] = $data['primary_color'] ?? '#000000';
+        $data['secondary_color'] = $data['secondary_color'] ?? '#ffffff';
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
 
         $entry = Domain::create($data);
@@ -62,6 +69,9 @@ class AdminApiController extends Controller
     public function updateEntry(Request $request, Domain $domain)
     {
         $data = $this->validateEntry($request, $domain);
+        $data['application_id'] = $data['application_id'] ?: null;
+        $data['primary_color'] = $data['primary_color'] ?? ($domain->primary_color ?: '#000000');
+        $data['secondary_color'] = $data['secondary_color'] ?? ($domain->secondary_color ?: '#ffffff');
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
         $domain->update($data);
 
@@ -78,14 +88,25 @@ class AdminApiController extends Controller
     public function entryDetails(Domain $domain)
     {
         return response()->json([
-            'entry' => $domain,
-            'memberships' => AppMembership::where('domain_id', $domain->id)->latest()->get(),
-            'plans' => MembershipPlan::with('features')->where('domain_id', $domain->id)->orderBy('sorting')->get(),
-            'features' => MembershipFeature::where('domain_id', $domain->id)->orderBy('sorting')->get(),
-            'notifications' => Notification::with('logs')->where('domain_id', $domain->id)->latest()->get(),
+            'entry'                 => $domain,
+            'memberships'           => \App\Models\AppMembership::where('domain_id', $domain->id)->latest()->get(),
+            'plans'                 => \App\Models\MembershipPlan::with('features')->where('domain_id', $domain->id)->orderBy('sorting')->get(),
+            'features'              => MembershipFeature::where('domain_id', $domain->id)->orderBy('sorting')->get(),
+            'notifications'         => Notification::with('logs')->where('domain_id', $domain->id)->latest()->get(),
             'notification_settings' => NotificationSetting::where('domain_id', $domain->id)->latest()->get(),
-            'devices' => UserDevice::where('domain_id', $domain->id)->latest('last_seen_at')->get(),
-            'pages' => \App\Models\Page::where('domain_id', $domain->id)->latest()->get(),
+            'devices'               => UserDevice::where('domain_id', $domain->id)->latest('last_seen_at')->get(),
+            'pages'                 => \App\Models\Page::where('domain_id', $domain->id)->latest()->get(),
+            'faqs'                  => \App\Models\Faq::where('domain_id', $domain->id)->orderBy('sorting')->get(),
+            'feedbacks'             => \App\Models\Feedback::where('domain_id', $domain->id)->latest()->get(),
+            'feature_requests'      => \App\Models\FeatureRequest::where('domain_id', $domain->id)->latest()->get(),
+            'notes'                 => EntryNote::with('user:id,name,email')
+                ->where('domain_id', $domain->id)
+                ->where(function ($query) {
+                    $query->where('visibility', 'all')
+                        ->orWhere('user_id', request()->user()->id);
+                })
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -125,6 +146,42 @@ class AdminApiController extends Controller
         $membership->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function cancelMembership(AppMembership $membership)
+    {
+        $data = request()->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+            'details' => ['nullable', 'string'],
+        ]);
+
+        $membership->update([
+            'is_active'    => false,
+            'cancelled_at' => now(),
+            'cancellation_requested_at' => $membership->cancellation_requested_at ?: now(),
+            'cancellation_reason' => $data['reason'] ?? $membership->cancellation_reason,
+            'cancellation_details' => $data['details'] ?? $membership->cancellation_details,
+            'cancellation_source' => $membership->cancellation_source ?: 'admin',
+        ]);
+
+        return response()->json(['membership' => $membership->fresh()]);
+    }
+
+    public function applyPromo(Request $request, AppMembership $membership)
+    {
+        $data = $request->validate([
+            'promo_code'     => ['required', 'string', 'max:50'],
+            'promo_discount' => ['required', 'numeric', 'min:0'],
+            'amount_paid'    => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $membership->update([
+            'promo_code'     => $data['promo_code'],
+            'promo_discount' => $data['promo_discount'],
+            'amount_paid'    => $data['amount_paid'],
+        ]);
+
+        return response()->json(['membership' => $membership->fresh()]);
     }
 
     public function storePlan(Request $request)
@@ -282,6 +339,94 @@ class AdminApiController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function staffUsers()
+    {
+        return response()->json([
+            'users' => User::with(['staffEntities.domain:id,title,application_id,entry_type'])
+                ->latest()
+                ->get(['id', 'name', 'email', 'created_at']),
+            'entries' => Domain::orderBy('title')->get(['id', 'title', 'application_id', 'entry_type']),
+        ]);
+    }
+
+    public function storeStaffUser(Request $request)
+    {
+        $data = $this->validateStaffUser($request);
+
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => strtolower($data['email']),
+            'password' => Hash::make($data['password']),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->syncStaffEntityShares($user, $data['entity_shares'] ?? []);
+
+        return response()->json([
+            'user' => $user->fresh(['staffEntities.domain:id,title,application_id,entry_type']),
+        ], 201);
+    }
+
+    public function updateStaffUser(Request $request, User $user)
+    {
+        $data = $this->validateStaffUser($request, $user);
+        $payload = [
+            'name' => $data['name'],
+            'email' => strtolower($data['email']),
+        ];
+
+        if (! empty($data['password'])) {
+            $payload['password'] = Hash::make($data['password']);
+        }
+
+        $user->update($payload);
+        $this->syncStaffEntityShares($user, $data['entity_shares'] ?? []);
+
+        return response()->json([
+            'user' => $user->fresh(['staffEntities.domain:id,title,application_id,entry_type']),
+        ]);
+    }
+
+    public function destroyStaffUser(Request $request, User $user)
+    {
+        if ($request->user()->id === $user->id) {
+            throw ValidationException::withMessages([
+                'user' => 'You cannot delete your own staff account.',
+            ]);
+        }
+
+        $user->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function storeNote(Request $request, Domain $domain)
+    {
+        $data = $this->validateNote($request);
+        $data['domain_id'] = $domain->id;
+        $data['user_id'] = $request->user()->id;
+
+        return response()->json([
+            'note' => EntryNote::create($data)->load('user:id,name,email'),
+        ], 201);
+    }
+
+    public function updateNote(Request $request, Domain $domain, EntryNote $note)
+    {
+        $this->authorizeNote($request, $note);
+        $note->update($this->validateNote($request));
+
+        return response()->json(['note' => $note->fresh('user:id,name,email')]);
+    }
+
+    public function destroyNote(Request $request, Domain $domain, EntryNote $note)
+    {
+        $this->authorizeNote($request, $note);
+        $note->delete();
+
+        return response()->json(['success' => true]);
+    }
+
     public function updateEmail(Request $request)
     {
         $data = $request->validate([
@@ -313,11 +458,11 @@ class AdminApiController extends Controller
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'entry_type' => ['required', Rule::in(['app', 'website', 'both'])],
+            'entry_type' => ['required', Rule::in(['app', 'website', 'both', 'other'])],
             'url' => ['nullable', 'url'],
             'google_play_url' => ['nullable', 'url'],
             'app_store_url' => ['nullable', 'url'],
-            'application_id' => ['required', 'string', 'max:255', Rule::unique('domains', 'application_id')->ignore($domain?->id)],
+            'application_id' => ['nullable', 'string', 'max:255', Rule::unique('domains', 'application_id')->ignore($domain?->id)],
             'cache_ttl_hours' => ['required', 'integer', 'min:1'],
             'seo_title' => ['nullable', 'string'],
             'seo_description' => ['nullable', 'string'],
@@ -326,8 +471,8 @@ class AdminApiController extends Controller
             'terms_conditions' => ['nullable', 'string'],
             'support_policy' => ['nullable', 'string'],
             'about_us' => ['nullable', 'string'],
-            'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'secondary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'secondary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'app_version' => ['nullable', 'string', 'max:20'],
             'min_build_code' => ['nullable', 'string', 'max:20'],
             'force_update' => ['boolean'],
@@ -399,6 +544,61 @@ class AdminApiController extends Controller
             ->where('membership_plan_id', $plan->id)
             ->when($keptIds, fn ($query) => $query->whereNotIn('id', $keptIds))
             ->delete();
+    }
+
+    private function validateStaffUser(Request $request, ?User $user = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
+            'password' => [$user ? 'nullable' : 'required', 'string', 'min:8'],
+            'entity_shares' => ['nullable', 'array'],
+            'entity_shares.*.domain_id' => ['required', 'exists:domains,id'],
+            'entity_shares.*.share_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+    }
+
+    private function syncStaffEntityShares(User $user, array $entityShares): void
+    {
+        $keptIds = [];
+
+        foreach ($entityShares as $entityShare) {
+            if (empty($entityShare['domain_id'])) {
+                continue;
+            }
+
+            $record = StaffUserEntity::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'domain_id' => $entityShare['domain_id'],
+                ],
+                [
+                    'share_percent' => $entityShare['share_percent'] ?? 0,
+                ]
+            );
+
+            $keptIds[] = $record->id;
+        }
+
+        StaffUserEntity::where('user_id', $user->id)
+            ->when($keptIds, fn ($query) => $query->whereNotIn('id', $keptIds))
+            ->delete();
+    }
+
+    private function validateNote(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'body' => ['required', 'string'],
+            'visibility' => ['required', Rule::in(['only_me', 'all'])],
+        ]);
+    }
+
+    private function authorizeNote(Request $request, EntryNote $note): void
+    {
+        if ($note->domain_id !== (int) $request->route('domain')->id || $note->user_id !== $request->user()->id) {
+            abort(403, 'You can only edit or delete your own notes.');
+        }
     }
 
     private function adsSettingsFromRequest(Request $request): array

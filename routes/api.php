@@ -3,7 +3,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppConfigController;
+use App\Http\Controllers\Api\AppEngagementController;
 use App\Http\Controllers\Api\FcmTokenController;
+use App\Http\Controllers\Api\MembershipCancellationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,3 +26,7 @@ Route::get('/app-config', [AppConfigController::class, 'show']);
 Route::post('/app-config', [AppConfigController::class, 'show']);
 Route::post('/fcm-token', [FcmTokenController::class, 'store']);
 Route::post('/user-active', [FcmTokenController::class, 'touch']);
+Route::post('/membership-cancel', [MembershipCancellationController::class, 'store']);
+Route::post('/feedback', [AppEngagementController::class, 'storeFeedback']);
+Route::post('/feature-request', [AppEngagementController::class, 'storeFeatureRequest']);
+Route::get('/feature-requests', [AppEngagementController::class, 'featureRequests']);

@@ -13,8 +13,6 @@ export const blankEntry = {
   terms_conditions: '',
   support_policy: '',
   about_us: '',
-  primary_color: '#000000',
-  secondary_color: '#ffffff',
   app_version: '',
   min_build_code: '',
   force_update: false,

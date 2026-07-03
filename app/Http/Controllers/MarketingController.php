@@ -7,6 +7,7 @@ use App\Models\AffiliateConversion;
 use App\Models\Campaign;
 use App\Models\Domain;
 use App\Models\LandingPage;
+use App\Models\MarketingExpense;
 use App\Models\ReferralProgram;
 use App\Models\ReferralUse;
 use App\Models\RevenueEntry;
@@ -22,13 +23,31 @@ class MarketingController extends Controller
     public function overview(Domain $domain)
     {
         $revenue = RevenueEntry::where('domain_id', $domain->id)->orderBy('date')->get();
+        $campaigns = Campaign::where('domain_id', $domain->id)->latest()->get();
+        $expenses = MarketingExpense::with('campaign:id,name')->where('domain_id', $domain->id)->orderByDesc('date')->get();
+        $manualRevenue = (float) $revenue->sum('amount');
+        $campaignRevenue = (float) $campaigns->sum('earned_amount');
+        $campaignSpend = (float) $campaigns->sum('spent_amount');
+        $otherExpenses = (float) $expenses->sum('amount');
+        $totalRevenue = $manualRevenue + $campaignRevenue;
+        $totalExpenses = $campaignSpend + $otherExpenses;
 
         return response()->json([
-            'campaigns'        => Campaign::where('domain_id', $domain->id)->latest()->get(),
+            'campaigns'        => $campaigns,
             'referral_programs'=> ReferralProgram::withCount('uses')->where('domain_id', $domain->id)->latest()->get(),
             'affiliates'       => Affiliate::withCount('conversions')->where('domain_id', $domain->id)->latest()->get(),
             'landing_pages'    => LandingPage::where('domain_id', $domain->id)->latest()->get(),
             'revenue'          => $revenue,
+            'expenses'         => $expenses,
+            'finance_summary'  => [
+                'manual_revenue' => $manualRevenue,
+                'campaign_revenue' => $campaignRevenue,
+                'total_revenue' => $totalRevenue,
+                'campaign_spend' => $campaignSpend,
+                'other_expenses' => $otherExpenses,
+                'total_expenses' => $totalExpenses,
+                'net_earning' => $totalRevenue - $totalExpenses,
+            ],
             'revenue_summary'  => [
                 'total'    => $revenue->sum('amount'),
                 'by_source'=> $revenue->groupBy('source')->map(fn ($g) => $g->sum('amount')),
@@ -46,7 +65,12 @@ class MarketingController extends Controller
     {
         $data = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
-            'type'         => ['required', 'in:email,sms,push'],
+            'type'         => ['required', 'in:email,sms,push,facebook,google,tiktok,instagram,other'],
+            'platform'     => ['nullable', 'string', 'max:100'],
+            'objective'    => ['nullable', 'string', 'max:255'],
+            'budget_amount'=> ['nullable', 'numeric', 'min:0'],
+            'spent_amount' => ['nullable', 'numeric', 'min:0'],
+            'earned_amount'=> ['nullable', 'numeric', 'min:0'],
             'subject'      => ['nullable', 'string', 'max:255'],
             'body'         => ['nullable', 'string'],
             'scheduled_at' => ['nullable', 'date'],
@@ -62,7 +86,12 @@ class MarketingController extends Controller
     {
         $data = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
-            'type'         => ['required', 'in:email,sms,push'],
+            'type'         => ['required', 'in:email,sms,push,facebook,google,tiktok,instagram,other'],
+            'platform'     => ['nullable', 'string', 'max:100'],
+            'objective'    => ['nullable', 'string', 'max:255'],
+            'budget_amount'=> ['nullable', 'numeric', 'min:0'],
+            'spent_amount' => ['nullable', 'numeric', 'min:0'],
+            'earned_amount'=> ['nullable', 'numeric', 'min:0'],
             'status'       => ['nullable', 'in:draft,scheduled,sent,cancelled'],
             'subject'      => ['nullable', 'string', 'max:255'],
             'body'         => ['nullable', 'string'],
@@ -291,5 +320,39 @@ class MarketingController extends Controller
         $revenueEntry->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function storeExpense(Request $request, Domain $domain)
+    {
+        $data = $this->validateExpense($request);
+        $data['domain_id'] = $domain->id;
+
+        return response()->json(['expense' => MarketingExpense::create($data)], 201);
+    }
+
+    public function updateExpense(Request $request, Domain $domain, MarketingExpense $expense)
+    {
+        $expense->update($this->validateExpense($request));
+
+        return response()->json(['expense' => $expense->fresh('campaign:id,name')]);
+    }
+
+    public function destroyExpense(Domain $domain, MarketingExpense $expense)
+    {
+        $expense->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function validateExpense(Request $request): array
+    {
+        return $request->validate([
+            'campaign_id' => ['nullable', 'exists:campaigns,id'],
+            'category' => ['required', 'string', 'max:100'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'max:3'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'date' => ['required', 'date'],
+        ]);
     }
 }

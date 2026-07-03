@@ -53,15 +53,29 @@ export function TableSkeleton({ compact = false }) {
           <Shimmer className="h-5 w-40" />
         </div>
       )}
-      <div className="p-5">
-        <div className="grid grid-cols-4 gap-4 mb-4">
-          {Array.from({ length: 4 }).map((_, index) => <Shimmer key={index} className="h-4" />)}
-        </div>
-        {Array.from({ length: 5 }).map((_, row) => (
-          <div key={row} className="grid grid-cols-4 gap-4 py-3 border-t border-gray-100 dark:border-gray-700/60">
-            {Array.from({ length: 4 }).map((__, col) => <Shimmer key={col} className="h-4" />)}
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="min-w-full table-auto text-sm">
+          <thead className="bg-gray-100 dark:bg-gray-700">
+            <tr>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <th key={index} className="px-4 py-3 text-left">
+                  <Shimmer className="h-3 w-24" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {Array.from({ length: 6 }).map((_, row) => (
+              <tr key={row}>
+                {Array.from({ length: 4 }).map((__, col) => (
+                  <td key={col} className="px-4 py-4">
+                    <Shimmer className={`h-4 ${col === 0 ? 'w-40' : col === 3 ? 'w-24' : 'w-32'}`} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

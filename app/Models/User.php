@@ -27,6 +27,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role_id',
     ];
 
     /**
@@ -58,4 +59,24 @@ class User extends Authenticatable
     protected $appends = [
         'profile_photo_url',
     ];
+
+    public function role() { return $this->belongsTo(\App\Models\Role::class); }
+
+    public function staffEntities()
+    {
+        return $this->hasMany(StaffUserEntity::class);
+    }
+
+    public function assignedEntities()
+    {
+        return $this->belongsToMany(Domain::class, 'staff_user_entities')
+            ->withPivot('share_percent')
+            ->withTimestamps();
+    }
+
+    public function hasPermission(string $module, string $action = 'view'): bool
+    {
+        if (! $this->role_id) return true; // no role = super admin (legacy)
+        return $this->role?->can($module, $action) ?? false;
+    }
 }

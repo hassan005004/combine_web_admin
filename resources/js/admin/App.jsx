@@ -4,21 +4,31 @@ import { Header } from './components/Header';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { Sidebar } from './components/Sidebar';
 import { EntryScreenSkeleton, PageSkeleton } from './components/Skeleton';
+import { ToastProvider } from './components/Toast';
 import { Dashboard } from './pages/Dashboard';
 import { Entries } from './pages/Entries';
 import { EntryDetails } from './pages/EntryDetails';
 import { EntryFormScreen } from './pages/EntryFormScreen';
+import { RolesPage } from './pages/RolesPage';
 import { Settings } from './pages/Settings';
+import { StaffUsersPage } from './pages/StaffUsersPage';
 import { blankEntry } from './utils';
 
 const tabSlugByKey = {
-  plans: 'plans',
-  memberships: 'memberships',
-  notifications: 'notifications',
-  fcm: 'fcm-settings',
-  users: 'active-users',
-  pages: 'pages',
-  files: 'files',
+  plans:          'plans',
+  memberships:    'memberships',
+  notifications:  'notifications',
+  fcm:            'fcm-settings',
+  users:          'active-users',
+  pages:          'pages',
+  files:          'files',
+  notes:          'notes',
+  faqs:           'faqs',
+  engagement:     'feedback-features',
+  feedback:       'feedback',
+  features:       'feature-requests',
+  marketing:      'marketing',
+  'app-version':  'app-version',
 };
 
 const tabKeyBySlug = Object.fromEntries(Object.entries(tabSlugByKey).map(([key, slug]) => [slug, key]));
@@ -54,14 +64,24 @@ function routeFromPath(pathname = window.location.pathname) {
     return { page: 'settings', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
   }
 
+  if (pathname === '/roles') {
+    return { page: 'roles', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
+  }
+
+  if (pathname === '/staff-users') {
+    return { page: 'staff-users', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
+  }
+
   return { page: 'dashboard', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
 }
 
 export function App() {
   return (
-    <ConfirmProvider>
-      <AdminApp />
-    </ConfirmProvider>
+    <ToastProvider>
+      <ConfirmProvider>
+        <AdminApp />
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
 
@@ -154,10 +174,11 @@ function AdminApp() {
   }
 
   function navigate(next) {
+    const urls = { dashboard: '/dashboard', settings: '/settings', roles: '/roles', 'staff-users': '/staff-users', entries: '/domains' };
     applyRoute(
       { page: next, selectedEntryId: null, detailTab: 'plans', editingEntryId: null },
       true,
-      next === 'dashboard' ? '/dashboard' : next === 'settings' ? '/settings' : '/domains',
+      urls[next] || '/domains',
     );
   }
 
@@ -202,24 +223,28 @@ function AdminApp() {
 
     try {
       const method = editingEntryId ? 'PUT' : 'POST';
-      const url = editingEntryId ? `/admin-api/entries/${editingEntryId}` : '/admin-api/entries';
+      const url    = editingEntryId ? `/admin-api/entries/${editingEntryId}` : '/admin-api/entries';
       await request(url, { method, body: JSON.stringify(entryForm) });
       const savedId = editingEntryId;
-      setEntryForm(blankEntry);
-      setEditingEntryId(null);
-      await refresh();
+      await refresh(); // refresh entries list so sidebar select is up-to-date
       if (savedId) {
-        // Return to the entry dashboard after saving
+        await loadDetails(savedId); // reload details so latest values are live
+        setEntryForm(blankEntry);
+        setEditingEntryId(null);
+        // Stay on dashboard so user sees the updated entry
         applyRoute(
           { page: 'dashboard', selectedEntryId: savedId, detailTab: 'plans', editingEntryId: null },
           true,
           `/domains/${savedId}/dashboard`,
         );
       } else {
+        setEntryForm(blankEntry);
+        setEditingEntryId(null);
         applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to save entry.');
+      throw err; // re-throw so EntryFormScreen knows the save failed
     } finally {
       setBusy(false);
     }
@@ -315,6 +340,8 @@ function AdminApp() {
             <EntryScreenSkeleton />
           )}
           {page === 'settings' && <Settings />}
+          {page === 'roles' && <RolesPage />}
+          {page === 'staff-users' && <StaffUsersPage />}
         </main>
       </div>
     </div>
