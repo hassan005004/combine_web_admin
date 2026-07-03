@@ -11,6 +11,7 @@ use App\Models\NotificationSetting;
 use App\Models\UserDevice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 
 class AdminApiController extends Controller
@@ -79,11 +80,12 @@ class AdminApiController extends Controller
         return response()->json([
             'entry' => $domain,
             'memberships' => AppMembership::where('domain_id', $domain->id)->latest()->get(),
-            'plans' => MembershipPlan::where('domain_id', $domain->id)->orderBy('sorting')->get(),
+            'plans' => MembershipPlan::with('features')->where('domain_id', $domain->id)->orderBy('sorting')->get(),
             'features' => MembershipFeature::where('domain_id', $domain->id)->orderBy('sorting')->get(),
             'notifications' => Notification::with('logs')->where('domain_id', $domain->id)->latest()->get(),
             'notification_settings' => NotificationSetting::where('domain_id', $domain->id)->latest()->get(),
             'devices' => UserDevice::where('domain_id', $domain->id)->latest('last_seen_at')->get(),
+            'pages' => \App\Models\Page::where('domain_id', $domain->id)->latest()->get(),
         ]);
     }
 
@@ -128,18 +130,30 @@ class AdminApiController extends Controller
     public function storePlan(Request $request)
     {
         $data = $this->validatePlan($request);
+        $features = $request->has('features') ? ($data['features'] ?? []) : null;
+        unset($data['features']);
         $data['is_active'] = $request->boolean('is_active');
 
-        return response()->json(['plan' => MembershipPlan::create($data)], 201);
+        $plan = MembershipPlan::create($data);
+        if (is_array($features)) {
+            $this->syncPlanFeatures($plan, $features);
+        }
+
+        return response()->json(['plan' => $plan->fresh('features')], 201);
     }
 
     public function updatePlan(Request $request, MembershipPlan $plan)
     {
         $data = $this->validatePlan($request);
+        $features = $request->has('features') ? ($data['features'] ?? []) : null;
+        unset($data['features']);
         $data['is_active'] = $request->boolean('is_active');
         $plan->update($data);
+        if (is_array($features)) {
+            $this->syncPlanFeatures($plan, $features);
+        }
 
-        return response()->json(['plan' => $plan->fresh()]);
+        return response()->json(['plan' => $plan->fresh('features')]);
     }
 
     public function destroyPlan(MembershipPlan $plan)
@@ -176,10 +190,23 @@ class AdminApiController extends Controller
     public function storeNotification(Request $request, NotificationController $sender)
     {
         $data = $request->validate([
-            'domain_id' => ['required', 'exists:domains,id'],
-            'title' => ['required', 'string', 'max:255'],
-            'message' => ['required', 'string'],
+            'domain_id'    => ['required', 'exists:domains,id'],
+            'title'        => ['nullable', 'string', 'max:255'],
+            'message'      => ['required', 'string'],
+            'image'        => ['nullable', 'file', 'image', 'max:4096'],
+            'image_url'    => ['nullable', 'string', 'max:2048'],
+            'name'         => ['nullable', 'string', 'max:255'],
+            'scheduled_at' => ['nullable', 'date'],
         ]);
+
+        // Handle image upload — uploaded file takes priority over pasted URL
+        if ($request->hasFile('image')) {
+            $data['image_url'] = Storage::disk('public')->url(
+                $request->file('image')->store('notification-images', 'public')
+            );
+        }
+        unset($data['image']);
+
         $data['sent_at'] = now();
         $notification = Notification::create($data);
         $sender->sendToAllUsers($notification);
@@ -206,14 +233,36 @@ class AdminApiController extends Controller
     {
         $data = $request->validate([
             'domain_id' => ['required', 'exists:domains,id'],
-            'services_file' => ['required', 'file', 'mimes:json,txt,pem', 'max:2048'],
+            'services_file' => ['nullable', 'file', 'mimes:json,txt,pem', 'max:2048'],
             'token' => ['nullable', 'string'],
             'token_expiry' => ['nullable', 'date'],
         ]);
 
-        $data['services_file'] = $request->file('services_file')->store('services_files', 'public');
+        $setting = NotificationSetting::where('domain_id', $data['domain_id'])->first();
 
-        return response()->json(['setting' => NotificationSetting::create($data)], 201);
+        if (! $setting && ! $request->hasFile('services_file')) {
+            throw ValidationException::withMessages([
+                'services_file' => 'The services file is required until an FCM setting is saved.',
+            ]);
+        }
+
+        if ($request->hasFile('services_file')) {
+            if ($setting?->services_file && Storage::disk('public')->exists($setting->services_file)) {
+                Storage::disk('public')->delete($setting->services_file);
+            }
+
+            $data['services_file'] = $request->file('services_file')->store('services_files', 'public');
+        } else {
+            unset($data['services_file']);
+        }
+
+        if ($setting) {
+            $setting->update($data);
+        } else {
+            $setting = NotificationSetting::create($data);
+        }
+
+        return response()->json(['setting' => $setting->fresh()], $setting->wasRecentlyCreated ? 201 : 200);
     }
 
     public function destroyNotificationSetting(NotificationSetting $setting)
@@ -229,6 +278,33 @@ class AdminApiController extends Controller
     public function destroyDevice(UserDevice $device)
     {
         $device->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function updateEmail(Request $request)
+    {
+        $data = $request->validate([
+            'email'    => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($request->user()->id)],
+            'password' => ['required', 'string', 'current_password'],
+        ]);
+
+        $request->user()->update(['email' => $data['email']]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password'      => ['required', 'string', 'current_password'],
+            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['required', 'string'],
+        ]);
+
+        $request->user()->update([
+            'password' => \Illuminate\Support\Facades\Hash::make($request->password),
+        ]);
 
         return response()->json(['success' => true]);
     }
@@ -252,6 +328,9 @@ class AdminApiController extends Controller
             'about_us' => ['nullable', 'string'],
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'secondary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'app_version' => ['nullable', 'string', 'max:20'],
+            'min_build_code' => ['nullable', 'string', 'max:20'],
+            'force_update' => ['boolean'],
         ]);
     }
 
@@ -266,6 +345,12 @@ class AdminApiController extends Controller
             'yearly_benefit' => ['nullable', 'string', 'max:255'],
             'sorting' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
+            'features' => ['nullable', 'array'],
+            'features.*.id' => ['nullable', 'integer', 'exists:membership_features,id'],
+            'features.*.icon' => ['nullable', 'string', 'max:255'],
+            'features.*.text' => ['nullable', 'string', 'max:255'],
+            'features.*.sorting' => ['nullable', 'integer', 'min:0'],
+            'features.*.is_active' => ['boolean'],
         ]);
     }
 
@@ -273,11 +358,47 @@ class AdminApiController extends Controller
     {
         return $request->validate([
             'domain_id' => ['required', 'exists:domains,id'],
+            'membership_plan_id' => ['nullable', 'exists:membership_plans,id'],
             'icon' => ['nullable', 'string', 'max:255'],
             'text' => ['nullable', 'string', 'max:255'],
             'sorting' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
         ]);
+    }
+
+    private function syncPlanFeatures(MembershipPlan $plan, array $features): void
+    {
+        $keptIds = [];
+
+        foreach ($features as $index => $feature) {
+            $payload = [
+                'domain_id' => $plan->domain_id,
+                'membership_plan_id' => $plan->id,
+                'icon' => $feature['icon'] ?? 'star',
+                'text' => $feature['text'] ?? null,
+                'sorting' => $feature['sorting'] ?? $index,
+                'is_active' => $feature['is_active'] ?? true,
+            ];
+
+            if (! empty($feature['id'])) {
+                $record = MembershipFeature::where('id', $feature['id'])
+                    ->where('domain_id', $plan->domain_id)
+                    ->first();
+
+                if ($record) {
+                    $record->update($payload);
+                    $keptIds[] = $record->id;
+                    continue;
+                }
+            }
+
+            $keptIds[] = MembershipFeature::create($payload)->id;
+        }
+
+        MembershipFeature::where('domain_id', $plan->domain_id)
+            ->where('membership_plan_id', $plan->id)
+            ->when($keptIds, fn ($query) => $query->whereNotIn('id', $keptIds))
+            ->delete();
     }
 
     private function adsSettingsFromRequest(Request $request): array

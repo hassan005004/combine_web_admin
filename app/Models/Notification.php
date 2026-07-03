@@ -12,11 +12,15 @@ class Notification extends Model
         'domain_id',
         'title',
         'message',
+        'image_url',
+        'name',
+        'scheduled_at',
         'sent_at',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'scheduled_at' => 'datetime',
     ];
 
     public function domain()

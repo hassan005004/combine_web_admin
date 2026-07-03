@@ -1,29 +1,32 @@
 import { useState } from 'react';
 import { DeviceManager } from '../managers/DeviceManager';
 import { FcmSettings } from '../managers/FcmSettings';
-import { FeatureManager } from '../managers/FeatureManager';
 import { MembershipManager } from '../managers/MembershipManager';
 import { NotificationManager } from '../managers/NotificationManager';
 import { PlanManager } from '../managers/PlanManager';
+import { PagesManager } from '../managers/PagesManager';
+import { FileManager } from './FileManager';
 
 const screenTitles = {
   plans: 'Plans',
   memberships: 'Memberships',
-  features: 'Features',
   notifications: 'Notifications',
   fcm: 'FCM Settings',
   users: 'Active Users',
+  pages: 'Pages',
+  files: 'File Manager',
 };
 
 export function EntryDetails({ selectedEntry, details, detailTab, reloadDetails, reloadAll }) {
   const [headerAction, setHeaderAction] = useState(null);
   const screenContent = {
     plans: <PlanManager entry={selectedEntry} items={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
-    memberships: <MembershipManager entry={selectedEntry} items={details.memberships || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
-    features: <FeatureManager entry={selectedEntry} items={details.features || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
+    memberships: <MembershipManager entry={selectedEntry} items={details.memberships || []} plans={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
     notifications: <NotificationManager entry={selectedEntry} items={details.notifications || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
-    fcm: <FcmSettings entry={selectedEntry} items={details.notification_settings || []} reload={reloadDetails} />,
+    fcm: <FcmSettings entry={selectedEntry} items={details.notification_settings || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
     users: <DeviceManager items={details.devices || []} reload={async () => { await reloadDetails(); await reloadAll(); }} />,
+    pages: <PagesManager entry={selectedEntry} items={details.pages || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />,
+    files: <FileManager entry={selectedEntry} />,
   };
 
   return (

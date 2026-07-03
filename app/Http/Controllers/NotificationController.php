@@ -170,13 +170,19 @@ class NotificationController extends Controller
 
         foreach ($devices->chunk(100) as $chunk) {
             foreach ($chunk as $device) {
+                $fcmNotification = [
+                    'title' => $title,
+                    'body'  => $body,
+                ];
+
+                if ($notification->image_url) {
+                    $fcmNotification['image'] = $notification->image_url;
+                }
+
                 $response = Http::withToken($accessToken)->post($url, [
                     'message' => [
-                        'token' => $device->fcm_token,
-                        'notification' => [
-                            'title' => $title,
-                            'body' => $body,
-                        ],
+                        'token'        => $device->fcm_token,
+                        'notification' => $fcmNotification,
                     ],
                 ]);
 
@@ -189,10 +195,10 @@ class NotificationController extends Controller
                 // Log each attempt
                 NotificationLog::create([
                     'notification_id' => $notification->id,
-                    'user_id' => $device->id,
-                    'fcm_token' => $device->fcm_token,
-                    'success' => $success,
-                    'response' => $errorReason, 
+                    'user_id'         => $device->id,
+                    'fcm_token'       => $device->fcm_token,
+                    'success'         => $success,
+                    'response'        => $errorReason,
                 ]);
             }
         }

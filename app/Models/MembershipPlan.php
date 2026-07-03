@@ -30,4 +30,9 @@ class MembershipPlan extends Model
     {
         return $this->belongsTo(Domain::class);
     }
+
+    public function features()
+    {
+        return $this->hasMany(MembershipFeature::class)->orderBy('sorting');
+    }
 }

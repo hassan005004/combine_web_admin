@@ -62,15 +62,22 @@ class AppConfigController extends Controller
                 'is_active' => (bool) $membership,
                 'plan' => $membership?->plan ?? 'free',
                 'plans' => $domain->membershipPlans()
+                    ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
                     ->where('is_active', true)
                     ->orderBy('sorting')
-                    ->get(['name', 'monthly_price', 'yearly_price', 'tagline', 'yearly_benefit', 'sorting'])
+                    ->get(['id', 'domain_id', 'name', 'monthly_price', 'yearly_price', 'tagline', 'yearly_benefit', 'sorting'])
                     ->map(fn ($plan) => [
                         'name' => $plan->name,
                         'monthly_price' => (float) $plan->monthly_price,
                         'yearly_price' => (float) $plan->yearly_price,
                         'tagline' => $plan->tagline,
                         'yearly_benefit' => $plan->yearly_benefit,
+                        'features' => $plan->features
+                            ->map(fn ($feature) => [
+                                'icon' => $feature->icon,
+                                'text' => $feature->text,
+                            ])
+                            ->values(),
                     ])
                     ->values(),
                 'features' => $domain->membershipFeatures()

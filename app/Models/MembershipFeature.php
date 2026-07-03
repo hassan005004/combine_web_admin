@@ -11,6 +11,7 @@ class MembershipFeature extends Model
 
     protected $fillable = [
         'domain_id',
+        'membership_plan_id',
         'icon',
         'text',
         'sorting',
@@ -24,5 +25,10 @@ class MembershipFeature extends Model
     public function domain()
     {
         return $this->belongsTo(Domain::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(MembershipPlan::class, 'membership_plan_id');
     }
 }

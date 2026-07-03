@@ -27,10 +27,14 @@ class Domain extends Model
         'ads_settings',
         'primary_color',
         'secondary_color',
+        'app_version',
+        'min_build_code',
+        'force_update',
     ];
 
     protected $casts = [
         'ads_settings' => 'array',
+        'force_update' => 'boolean',
     ];
 
     // Relationships

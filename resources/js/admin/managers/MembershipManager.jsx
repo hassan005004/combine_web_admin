@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { request } from '../api';
-import { Input, Toggle } from '../components/FormControls';
+import { Input, Select, Toggle } from '../components/FormControls';
 import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/DataRows';
 
-export function MembershipManager({ entry, items, reload, setHeaderAction }) {
-  const blankForm = { domain_id: entry.id, email: '', plan: 'premium', expires_at: '', is_active: true };
+export function MembershipManager({ entry, items, plans = [], reload, setHeaderAction }) {
+  const blankForm = { domain_id: entry.id, email: '', plan: '', expires_at: '', is_active: true };
   const [screen, setScreen] = useState('list');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(blankForm);
+
+  // Default plan to first available plan name
+  const planOptions = plans.map((p) => [p.name, p.name]);
 
   useEffect(() => {
     setHeaderAction(screen === 'list' ? (
@@ -17,7 +20,7 @@ export function MembershipManager({ entry, items, reload, setHeaderAction }) {
   }, [screen]);
 
   function createMembership() {
-    setForm({ ...blankForm, domain_id: entry.id });
+    setForm({ ...blankForm, domain_id: entry.id, plan: plans[0]?.name || '' });
     setEditingId(null);
     setScreen('form');
   }
@@ -37,7 +40,16 @@ export function MembershipManager({ entry, items, reload, setHeaderAction }) {
   }
 
   if (screen === 'form') {
-    return <MembershipForm form={form} setForm={setForm} editingId={editingId} submit={submit} cancel={() => setScreen('list')} />;
+    return (
+      <MembershipForm
+        form={form}
+        setForm={setForm}
+        editingId={editingId}
+        planOptions={planOptions}
+        submit={submit}
+        cancel={() => setScreen('list')}
+      />
+    );
   }
 
   return (
@@ -56,7 +68,7 @@ export function MembershipManager({ entry, items, reload, setHeaderAction }) {
   );
 }
 
-function MembershipForm({ form, setForm, editingId, submit, cancel }) {
+function MembershipForm({ form, setForm, editingId, planOptions, submit, cancel }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   return (
@@ -66,7 +78,16 @@ function MembershipForm({ form, setForm, editingId, submit, cancel }) {
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Email" type="email" value={form.email} onChange={(value) => update('email', value)} required />
-        <Input label="Plan" value={form.plan} onChange={(value) => update('plan', value)} required />
+        {planOptions.length > 0 ? (
+          <Select
+            label="Plan"
+            value={form.plan}
+            onChange={(value) => update('plan', value)}
+            options={planOptions}
+          />
+        ) : (
+          <Input label="Plan" value={form.plan} onChange={(value) => update('plan', value)} required />
+        )}
         <Input label="Expires At" type="datetime-local" value={form.expires_at || ''} onChange={(value) => update('expires_at', value)} />
         <Toggle label="Status" checked={!!form.is_active} onChange={(value) => update('is_active', value)} />
         <div className="md:col-span-3 flex gap-2">

@@ -1,9 +1,11 @@
 import { DataTable } from '../components/DataRows';
 import { MetricCard } from '../components/MetricCard';
 import { PageSkeleton } from '../components/Skeleton';
+import { useConfirm } from '../components/ConfirmDialog';
+import { request } from '../api';
 import { formatDate } from '../utils';
 
-export function Dashboard({ data, details, selectedEntry, navigate }) {
+export function Dashboard({ data, details, selectedEntry, navigate, onDeleteEntry }) {
   if (selectedEntry && !details) {
     return <PageSkeleton titleWidth="w-72" subtitleWidth="w-56" />;
   }
@@ -43,6 +45,15 @@ export function Dashboard({ data, details, selectedEntry, navigate }) {
   ];
   const recentUsers = details ? details.devices || [] : data?.recent_users || [];
 
+  const { confirmDelete } = useConfirm();
+
+  async function handleDelete() {
+    const confirmed = await confirmDelete({ title: `Delete "${selectedEntry.title}"`, message: 'This will permanently delete the entry and all its data. This cannot be undone.' });
+    if (!confirmed) return;
+    await request(`/admin-api/entries/${selectedEntry.id}`, { method: 'DELETE' });
+    onDeleteEntry?.();
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-8">
@@ -57,6 +68,15 @@ export function Dashboard({ data, details, selectedEntry, navigate }) {
         {!selectedEntry && (
           <button type="button" onClick={() => navigate('entries')} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium">
             Manage Entries
+          </button>
+        )}
+        {selectedEntry && onDeleteEntry && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/15 dark:text-red-300 text-sm font-medium"
+          >
+            Delete Entry
           </button>
         )}
       </div>

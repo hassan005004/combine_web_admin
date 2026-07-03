@@ -8,15 +8,17 @@ import { Dashboard } from './pages/Dashboard';
 import { Entries } from './pages/Entries';
 import { EntryDetails } from './pages/EntryDetails';
 import { EntryFormScreen } from './pages/EntryFormScreen';
+import { Settings } from './pages/Settings';
 import { blankEntry } from './utils';
 
 const tabSlugByKey = {
   plans: 'plans',
   memberships: 'memberships',
-  features: 'features',
   notifications: 'notifications',
   fcm: 'fcm-settings',
   users: 'active-users',
+  pages: 'pages',
+  files: 'files',
 };
 
 const tabKeyBySlug = Object.fromEntries(Object.entries(tabSlugByKey).map(([key, slug]) => [slug, key]));
@@ -24,7 +26,8 @@ const tabKeyBySlug = Object.fromEntries(Object.entries(tabSlugByKey).map(([key, 
 function routeFromPath(pathname = window.location.pathname) {
   const editMatch = pathname.match(/^\/domains\/(\d+)\/edit$/);
   if (editMatch) {
-    return { page: 'entry-form', selectedEntryId: null, detailTab: 'plans', editingEntryId: Number(editMatch[1]) };
+    const id = Number(editMatch[1]);
+    return { page: 'entry-form', selectedEntryId: id, detailTab: 'plans', editingEntryId: id };
   }
 
   if (pathname === '/domains/create') {
@@ -45,6 +48,10 @@ function routeFromPath(pathname = window.location.pathname) {
 
   if (pathname === '/domains') {
     return { page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
+  }
+
+  if (pathname === '/settings') {
+    return { page: 'settings', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
   }
 
   return { page: 'dashboard', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
@@ -105,6 +112,7 @@ function AdminApp() {
   function applyRoute(route, push = true, url = null) {
     setDetails((current) => {
       if (!route.selectedEntryId) return null;
+      // Keep existing details if same entry — don't wipe on entry-form navigation
       return current?.entry?.id === route.selectedEntryId ? current : null;
     });
 
@@ -149,7 +157,7 @@ function AdminApp() {
     applyRoute(
       { page: next, selectedEntryId: null, detailTab: 'plans', editingEntryId: null },
       true,
-      next === 'dashboard' ? '/dashboard' : '/domains',
+      next === 'dashboard' ? '/dashboard' : next === 'settings' ? '/settings' : '/domains',
     );
   }
 
@@ -196,10 +204,20 @@ function AdminApp() {
       const method = editingEntryId ? 'PUT' : 'POST';
       const url = editingEntryId ? `/admin-api/entries/${editingEntryId}` : '/admin-api/entries';
       await request(url, { method, body: JSON.stringify(entryForm) });
+      const savedId = editingEntryId;
       setEntryForm(blankEntry);
       setEditingEntryId(null);
       await refresh();
-      applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
+      if (savedId) {
+        // Return to the entry dashboard after saving
+        applyRoute(
+          { page: 'dashboard', selectedEntryId: savedId, detailTab: 'plans', editingEntryId: null },
+          true,
+          `/domains/${savedId}/dashboard`,
+        );
+      } else {
+        applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -209,11 +227,25 @@ function AdminApp() {
 
   function editEntry(entry) {
     setEntryForm({ ...blankEntry, ...entry });
-    applyRoute({ page: 'entry-form', selectedEntryId: null, detailTab: 'plans', editingEntryId: entry.id }, true, `/domains/${entry.id}/edit`);
+    // Keep selectedEntryId so the entry sidebar stays visible
+    applyRoute(
+      { page: 'entry-form', selectedEntryId: entry.id, detailTab: detailTab, editingEntryId: entry.id },
+      true,
+      `/domains/${entry.id}/edit`,
+    );
   }
 
   function cancelEntryForm() {
-    applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
+    if (editingEntryId) {
+      // Return to the entry dashboard when cancelling an edit from within an entry
+      applyRoute(
+        { page: 'dashboard', selectedEntryId: editingEntryId, detailTab: 'plans', editingEntryId: null },
+        true,
+        `/domains/${editingEntryId}/dashboard`,
+      );
+    } else {
+      applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
+    }
   }
 
   return (
@@ -229,6 +261,7 @@ function AdminApp() {
         changeSelectedEntry={changeSelectedEntry}
         navigateSelected={navigateSelected}
         leaveSelectedEntry={leaveSelectedEntry}
+        editEntry={editEntry}
       />
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header />
@@ -240,6 +273,10 @@ function AdminApp() {
               details={selectedMode ? details : null}
               selectedEntry={selectedEntry}
               navigate={selectedMode ? navigateSelected : navigate}
+              onDeleteEntry={selectedMode ? async () => {
+                await refresh();
+                leaveSelectedEntry();
+              } : null}
             />
           )}
           {page === 'dashboard' && selectedEntryId && !selectedEntry && (
@@ -249,8 +286,6 @@ function AdminApp() {
             <Entries
               entries={entries}
               addEntry={addEntry}
-              editEntry={editEntry}
-              reloadEntries={refresh}
               viewEntry={viewEntry}
             />
           )}
@@ -279,6 +314,7 @@ function AdminApp() {
           {page === 'manage' && selectedEntry && !details && (
             <EntryScreenSkeleton />
           )}
+          {page === 'settings' && <Settings />}
         </main>
       </div>
     </div>

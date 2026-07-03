@@ -6,6 +6,7 @@ use App\Http\Controllers\AdminApiController;
 use App\Http\Controllers\AdminReactController;
 use App\Http\Controllers\AppShowcaseController;
 use App\Http\Controllers\DataFeedController;
+use App\Http\Controllers\FileManagerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,6 +53,20 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
         Route::delete('/notification-settings/{setting}', [AdminApiController::class, 'destroyNotificationSetting']);
 
         Route::delete('/devices/{device}', [AdminApiController::class, 'destroyDevice']);
+
+        // File Manager (scoped per domain)
+        Route::get('/entries/{domain}/files',        [FileManagerController::class, 'index']);
+        Route::post('/entries/{domain}/files/mkdir', [FileManagerController::class, 'mkdir']);
+        Route::post('/entries/{domain}/files/upload',[FileManagerController::class, 'upload']);
+        Route::delete('/entries/{domain}/files',     [FileManagerController::class, 'destroy']);
+
+        Route::post('/settings/email', [AdminApiController::class, 'updateEmail']);
+        Route::post('/settings/password', [AdminApiController::class, 'updatePassword']);
+
+        Route::get('/entries/{domain}/pages', [AdminApiController::class, 'listPages']);
+        Route::post('/entries/{domain}/pages', [AdminApiController::class, 'storePage']);
+        Route::put('/entries/{domain}/pages/{page}', [AdminApiController::class, 'updatePage']);
+        Route::delete('/entries/{domain}/pages/{page}', [AdminApiController::class, 'destroyPage']);
     });
 
     // Route for the getting the data feed
@@ -69,6 +84,8 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/notifications/{any?}', AdminReactController::class)->where('any', '.*')->name('notifications.index');
     Route::get('/notification-settings/{any?}', AdminReactController::class)->where('any', '.*')->name('notification-settings.index');
     Route::get('/user-devices/{any?}', AdminReactController::class)->where('any', '.*')->name('user-devices.index');
+    Route::get('/settings', AdminReactController::class)->name('settings');
+    Route::get('/pages/{any?}', AdminReactController::class)->where('any', '.*')->name('pages.index');
 
     Route::fallback(AdminReactController::class);    
 });

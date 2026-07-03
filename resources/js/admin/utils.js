@@ -15,6 +15,9 @@ export const blankEntry = {
   about_us: '',
   primary_color: '#000000',
   secondary_color: '#ffffff',
+  app_version: '',
+  min_build_code: '',
+  force_update: false,
 };
 
 export function labelize(value) {
