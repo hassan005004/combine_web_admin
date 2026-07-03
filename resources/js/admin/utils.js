@@ -20,6 +20,13 @@ export const blankEntry = {
   app_version: '',
   min_build_code: '',
   force_update: false,
+  ads: {
+    bottom:      { enabled: false, unit_id: '', frequency: 0 },
+    app_open:    { enabled: false, unit_id: '', frequency: 0 },
+    full_screen: { enabled: false, unit_id: '', frequency: 5 },
+    rewarded:    { enabled: false, unit_id: '', frequency: 0 },
+    native:      { enabled: false, unit_id: '', frequency: 3 },
+  },
 };
 
 export function labelize(value) {

@@ -20,6 +20,7 @@ const tabSlugByKey = {
   notifications:  'notifications',
   fcm:            'fcm-settings',
   smtp:           'smtp-settings',
+  admob:          'admob',
   users:          'active-users',
   pages:          'pages',
   files:          'files',
@@ -158,7 +159,16 @@ function AdminApp() {
     if (page !== 'entry-form' || !editingEntryId || entries.length === 0) return;
     const entry = entries.find((item) => item.id === editingEntryId);
     if (entry) {
-      setEntryForm({ ...blankEntry, ...entry });
+      // Map ads_settings (server field) → ads (form field)
+      const serverAds = entry.ads_settings || {};
+      const ads = {
+        bottom:      { enabled: false, unit_id: '', frequency: 0, ...(serverAds.bottom      || {}) },
+        app_open:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.app_open    || {}) },
+        full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
+        rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
+        native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
+      };
+      setEntryForm({ ...blankEntry, ...entry, ads });
     }
   }, [entries, editingEntryId, page]);
 
@@ -334,11 +344,29 @@ function AdminApp() {
       payload.append('logo', form.logo);
     }
 
+    // AdMob settings — all 5 ad types
+    const adTypes = ['bottom', 'app_open', 'full_screen', 'rewarded', 'native'];
+    const ads = form.ads || {};
+    adTypes.forEach((type) => {
+      const adSetting = ads[type] || {};
+      payload.append(`ads[${type}][enabled]`, adSetting.enabled ? '1' : '0');
+      payload.append(`ads[${type}][unit_id]`, adSetting.unit_id || '');
+      payload.append(`ads[${type}][frequency]`, String(adSetting.frequency ?? 0));
+    });
+
     return payload;
   }
 
   function editEntry(entry) {
-    setEntryForm({ ...blankEntry, ...entry });
+    const serverAds = entry.ads_settings || {};
+    const ads = {
+      bottom:      { enabled: false, unit_id: '', frequency: 0, ...(serverAds.bottom      || {}) },
+      app_open:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.app_open    || {}) },
+      full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
+      rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
+      native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
+    };
+    setEntryForm({ ...blankEntry, ...entry, ads });
     // Keep selectedEntryId so the entry sidebar stays visible
     applyRoute(
       { page: 'entry-form', selectedEntryId: entry.id, detailTab: detailTab, editingEntryId: entry.id },

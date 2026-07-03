@@ -61,6 +61,7 @@ class AppConfigController extends Controller
                 'is_logged_in' => (bool) $email,
                 'is_active' => (bool) $membership,
                 'plan' => $membership?->plan ?? 'free',
+                'expires_at' => $membership?->expires_at?->toIso8601String(),
                 'plans' => $domain->membershipPlans()
                     ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
                     ->where('is_active', true)

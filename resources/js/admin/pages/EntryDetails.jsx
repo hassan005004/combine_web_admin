@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AdMobManager } from '../managers/AdMobManager';
 import { AppVersionManager } from '../managers/AppVersionManager';
 import { DeviceManager } from '../managers/DeviceManager';
 import { EngagementManager } from '../managers/EngagementManager';
@@ -21,6 +22,7 @@ const screenTitles = {
   notifications:  'Notifications',
   fcm:            'FCM Settings',
   smtp:           'SMTP Settings',
+  admob:          'AdMob Settings',
   users:          'Active Users',
   pages:          'Pages',
   files:          'File Manager',
@@ -98,6 +100,8 @@ function renderTab(tab, { selectedEntry, details, moduleAction, moduleItemId, re
       return <FeatureRequestManager entry={selectedEntry} items={details.feature_requests || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'marketing':
       return <MarketingManager entry={selectedEntry} setHeaderAction={setHeaderAction} />;
+    case 'admob':
+      return <AdMobManager entry={selectedEntry} reload={reloadDetails} />;
     case 'app-version':
       return <AppVersionManager entry={selectedEntry} reload={reloadDetails} />;
     default:
