@@ -1,4 +1,5 @@
-import { Input, Select } from '../components/FormControls';
+import { useEffect, useState } from 'react';
+import { Input, Select, Toggle } from '../components/FormControls';
 
 const TYPE_OPTIONS = [
   ['app',     'App (Android / iOS)'],
@@ -13,6 +14,18 @@ function showsWebsite(type) { return type === 'website' || type === 'both'; }
 
 export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntry, busy }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const [logoPreview, setLogoPreview] = useState(form.logo_url || null);
+
+  useEffect(() => {
+    if (form.logo instanceof File) {
+      const previewUrl = URL.createObjectURL(form.logo);
+      setLogoPreview(previewUrl);
+      return () => URL.revokeObjectURL(previewUrl);
+    }
+
+    setLogoPreview(form.logo_url || null);
+    return undefined;
+  }, [form.logo, form.logo_url]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -51,6 +64,13 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               onChange={(v) => update('application_id', v)}
               hint="optional unique app identifier"
             />
+            <Toggle
+              label="Apps Gallery"
+              checked={Boolean(form.show_in_apps_gallery)}
+              onChange={(v) => update('show_in_apps_gallery', v)}
+              onText="Shown"
+              offText="Hidden"
+            />
 
             {/* Website URL — shown for website / both */}
             {showsWebsite(form.entry_type) && (
@@ -71,6 +91,38 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               onChange={(v) => update('cache_ttl_hours', Number(v))}
               options={[['24', 'Daily (24 h)'], ['168', 'Weekly (7 d)'], ['336', 'Bi-weekly (14 d)'], ['720', 'Monthly (30 d)']]}
             />
+            <div className="md:col-span-2">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Logo</span>
+              <label className="mt-1 flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-900">
+                <span className="shrink-0 rounded-md bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                  Browse
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                  {form.logo?.name || (form.logo_url && !form.remove_logo ? 'Current logo saved' : 'No logo chosen')}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setForm((current) => ({ ...current, logo: file, remove_logo: false }));
+                  }}
+                />
+              </label>
+              {logoPreview && !form.remove_logo && (
+                <div className="mt-2 flex items-center gap-3">
+                  <img src={logoPreview} alt="Logo preview" className="h-14 w-14 rounded-lg border border-gray-200 object-cover dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, logo: null, logo_url: '', remove_logo: true }))}
+                    className="text-xs font-medium text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 

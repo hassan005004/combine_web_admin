@@ -4,7 +4,7 @@ import { Input, Select, Toggle } from '../components/FormControls';
 import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/DataRows';
 import { useConfirm } from '../components/ConfirmDialog';
 
-export function MembershipManager({ entry, items, plans = [], reload, setHeaderAction }) {
+export function MembershipManager({ entry, items, plans = [], reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const blankForm = { domain_id: entry.id, email: '', plan: '', expires_at: '', is_active: true };
   const [screen, setScreen]     = useState('list');   // 'list' | 'form' | 'promo'
   const [editingId, setEditingId] = useState(null);
@@ -25,16 +25,33 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
     return () => setHeaderAction(null);
   }, [screen]);
 
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm({ ...blankForm, domain_id: entry.id, plan: plans[0]?.name || '' });
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const membership = items.find((item) => String(item.id) === String(moduleItemId));
+      if (membership) editMembership(membership, false);
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items, plans]);
+
   function createMembership() {
     setForm({ ...blankForm, domain_id: entry.id, plan: plans[0]?.name || '' });
     setEditingId(null);
-    setScreen('form');
+    navigateModule?.('create');
   }
 
-  function editMembership(membership) {
+  function editMembership(membership, push = true) {
     setForm({ ...blankForm, ...membership, domain_id: entry.id, expires_at: String(membership.expires_at || '').slice(0, 16) });
     setEditingId(membership.id);
     setScreen('form');
+    if (push) navigateModule?.('edit', membership.id);
   }
 
   async function submit(event) {
@@ -42,7 +59,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
     const url = editingId ? `/admin-api/memberships/${editingId}` : '/admin-api/memberships';
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(form) });
     await reload();
-    setScreen('list');
+    navigateModule?.();
   }
 
   async function cancelMembership(item) {
@@ -109,7 +126,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
         editingId={editingId}
         planOptions={planOptions}
         submit={submit}
-        cancel={() => setScreen('list')}
+        cancel={() => navigateModule?.()}
       />
     );
   }

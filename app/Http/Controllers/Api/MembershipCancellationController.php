@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppMembership;
 use App\Models\Domain;
+use App\Services\EntitySmtpMailer;
 use Illuminate\Http\Request;
 
 class MembershipCancellationController extends Controller
@@ -32,6 +33,8 @@ class MembershipCancellationController extends Controller
             'cancellation_details' => $validated['details'] ?? null,
             'cancellation_source' => 'app',
         ]);
+
+        app(EntitySmtpMailer::class)->membershipChanged($domain, $membership->fresh(), 'cancel requested from app');
 
         return response()->json([
             'success' => true,

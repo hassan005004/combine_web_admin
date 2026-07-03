@@ -54,6 +54,8 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
 
         Route::post('/notification-settings', [AdminApiController::class, 'storeNotificationSetting']);
         Route::delete('/notification-settings/{setting}', [AdminApiController::class, 'destroyNotificationSetting']);
+        Route::post('/entries/{domain}/smtp-setting', [AdminApiController::class, 'storeSmtpSetting']);
+        Route::post('/entries/{domain}/smtp-setting/test', [AdminApiController::class, 'testSmtpSetting']);
 
         Route::delete('/devices/{device}', [AdminApiController::class, 'destroyDevice']);
 

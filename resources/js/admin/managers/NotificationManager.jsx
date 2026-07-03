@@ -13,7 +13,7 @@ const blankForm = (domainId) => ({
   name: '',
 });
 
-export function NotificationManager({ entry, items, reload, setHeaderAction }) {
+export function NotificationManager({ entry, items, reload, setHeaderAction, moduleAction, navigateModule }) {
   const [screen, setScreen] = useState('list');
   const [form, setForm] = useState(blankForm(entry.id));
 
@@ -21,7 +21,7 @@ export function NotificationManager({ entry, items, reload, setHeaderAction }) {
     setHeaderAction(screen === 'list' ? (
       <button
         type="button"
-        onClick={() => { setForm(blankForm(entry.id)); setScreen('send'); }}
+        onClick={() => { setForm(blankForm(entry.id)); navigateModule?.('create'); }}
         className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium"
       >
         Send Notification
@@ -29,6 +29,15 @@ export function NotificationManager({ entry, items, reload, setHeaderAction }) {
     ) : null);
     return () => setHeaderAction(null);
   }, [screen]);
+
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm(blankForm(entry.id));
+      setScreen('send');
+      return;
+    }
+    setScreen('list');
+  }, [moduleAction, entry.id]);
 
   async function submit(event) {
     event.preventDefault();
@@ -42,7 +51,7 @@ export function NotificationManager({ entry, items, reload, setHeaderAction }) {
     await request('/admin-api/notifications', { method: 'POST', body });
     setForm(blankForm(entry.id));
     await reload();
-    setScreen('list');
+    navigateModule?.();
   }
 
   const update = (key, value) => setForm((cur) => ({ ...cur, [key]: value }));
@@ -90,7 +99,7 @@ export function NotificationManager({ entry, items, reload, setHeaderAction }) {
             </button>
             <button
               type="button"
-              onClick={() => setScreen('list')}
+              onClick={() => navigateModule?.()}
               className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100"
             >
               Cancel

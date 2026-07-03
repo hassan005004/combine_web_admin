@@ -53,6 +53,7 @@ export function Sidebar({
               <SidebarIcon name="edit" />
               <span className="admin-sidebar__text">Edit Entry</span>
             </button>
+            {ml('users',        'Active Users',    'users')}
 
             <div className="admin-sidebar__section">Monetisation</div>
             {ml('plans',       'Plans',       'plans')}
@@ -61,7 +62,8 @@ export function Sidebar({
             <div className="admin-sidebar__section">Engagement</div>
             {ml('notifications', 'Notifications', 'notifications')}
             {ml('faqs',          'FAQs',          'faq')}
-            {ml('engagement',    'Feedback / Features', 'feedback')}
+            {ml('feedback',      'Feedback',      'feedback')}
+            {ml('features',      'Features',      'feature_req')}
 
             <div className="admin-sidebar__section">Marketing</div>
             {ml('marketing', 'Marketing & Revenue', 'marketing')}
@@ -73,8 +75,8 @@ export function Sidebar({
 
             <div className="admin-sidebar__section">Settings</div>
             {ml('fcm',          'FCM Settings',    'fcm')}
+            {ml('smtp',         'SMTP Settings',   'smtp')}
             {ml('app-version',  'App Version',     'version')}
-            {ml('users',        'Active Users',    'users')}
           </>
         ) : (
           <>
@@ -106,6 +108,7 @@ function SidebarIcon({ name }) {
     notes:        <path d="M3 2h10v12H3V2Zm2 3v1h6V5H5Zm0 2.5v1h6v-1H5Zm0 2.5v1h4v-1H5Z" />,
     files:        <path d="M2 6a2 2 0 0 1 2-2h4l2 2h4a2 2 0 0 1 2 2v1H2V6Zm0 3h14v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9Z" />,
     fcm:          <path d="M4 2h8v12H4V2Zm2 2v6h4V4H6Zm0 7v1h4v-1H6Z" />,
+    smtp:         <path d="M2 4h12v8H2V4Zm1.5 1.5v.7L8 8.7l4.5-2.5v-.7h-9Zm0 1.9v3.1h9V7.4L8 9.9 3.5 7.4Z" />,
     version:      <path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM7 5h2v4H7V5Zm0 5h2v2H7v-2Z" />,
     users:        <path d="M6.5 7a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5ZM2 14c.45-3.05 2-4.6 4.5-4.6S10.55 10.95 11 14H2Zm9.2-5.2a2.25 2.25 0 0 0 0-4.3 3.5 3.5 0 0 1 0 4.3ZM10.5 14h3.5c-.25-1.85-1.2-3.05-2.75-3.5.55.8.95 1.95 1.15 3.5h-1.9Z" />,
     settings:     <path d="M8 5a3 3 0 1 0 0 6A3 3 0 0 0 8 5Zm-1 3a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6.34 2.34l-.9 1.56A5.97 5.97 0 0 0 4 4.73L2.27 4.5l-.77 1.33.93 1.35a6.1 6.1 0 0 0 0 1.64L1.5 10.17l.77 1.33L4 11.27a5.97 5.97 0 0 0 1.44.83l.9 1.56h1.32l.9-1.56A5.97 5.97 0 0 0 10 11.27l1.73.23.77-1.33-.93-1.35a6.1 6.1 0 0 0 0-1.64l.93-1.35-.77-1.33L10 4.73a5.97 5.97 0 0 0-1.44-.83l-.9-1.56H6.34Z" />,

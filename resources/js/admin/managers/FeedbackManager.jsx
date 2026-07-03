@@ -6,7 +6,7 @@ import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/D
 const STATUS_OPTS = [['open','Open'],['in_progress','In Progress'],['resolved','Resolved'],['closed','Closed']];
 const TYPE_OPTS   = [['feedback','Feedback'],['bug','Bug Report']];
 
-export function FeedbackManager({ entry, items, reload, setHeaderAction }) {
+export function FeedbackManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const [tab, setTab] = useState('feedback'); // 'feedback' | 'bug'
   const [screen, setScreen] = useState('list');
   const [editingId, setEditingId] = useState(null);
@@ -24,13 +24,32 @@ export function FeedbackManager({ entry, items, reload, setHeaderAction }) {
     return () => setHeaderAction(null);
   }, [screen, tab]);
 
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm({ type: tab, email: '', subject: '', body: '', status: 'open' });
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const item = items.find((row) => String(row.id) === String(moduleItemId));
+      if (item) {
+        setTab(item.type || 'feedback');
+        startEdit(item, false);
+      }
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items]);
+
   function startCreate() {
     setForm({ type: tab, email: '', subject: '', body: '', status: 'open' });
-    setEditingId(null); setScreen('form');
+    setEditingId(null); navigateModule?.('create');
   }
-  function startEdit(item) {
+  function startEdit(item, push = true) {
     setForm({ status: item.status, admin_notes: item.admin_notes || '' });
-    setEditingId(item.id); setScreen('form');
+    setEditingId(item.id); setScreen('form'); if (push) navigateModule?.('edit', item.id);
   }
 
   async function submit(e) {
@@ -40,7 +59,7 @@ export function FeedbackManager({ entry, items, reload, setHeaderAction }) {
     } else {
       await request(`/admin-api/entries/${entry.id}/feedbacks`, { method: 'POST', body: JSON.stringify(form) });
     }
-    await reload(); setScreen('list');
+    await reload(); navigateModule?.();
   }
 
   if (screen === 'form') {
@@ -60,7 +79,7 @@ export function FeedbackManager({ entry, items, reload, setHeaderAction }) {
           {editingId && <Textarea label="Admin Notes" value={form.admin_notes || ''} onChange={(v) => upd('admin_notes', v)} rows={3} />}
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update' : 'Save'}</button>
-            <button type="button" onClick={() => setScreen('list')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
+            <button type="button" onClick={() => navigateModule?.()} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
           </div>
         </form>
       </div>

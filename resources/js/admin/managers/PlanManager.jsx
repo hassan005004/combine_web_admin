@@ -4,7 +4,7 @@ import { Input, Toggle } from '../components/FormControls';
 import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/DataRows';
 import { FeatureIcon, featureIconOptions } from '../components/FeatureIcon';
 
-export function PlanManager({ entry, items, reload, setHeaderAction }) {
+export function PlanManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const blankForm = {
     domain_id: entry.id,
     name: '',
@@ -27,16 +27,33 @@ export function PlanManager({ entry, items, reload, setHeaderAction }) {
     return () => setHeaderAction(null);
   }, [screen]);
 
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm({ ...blankForm, domain_id: entry.id });
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const plan = items.find((item) => String(item.id) === String(moduleItemId));
+      if (plan) editPlan(plan, false);
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items]);
+
   function createPlan() {
     setForm({ ...blankForm, domain_id: entry.id });
     setEditingId(null);
-    setScreen('form');
+    navigateModule?.('create');
   }
 
-  function editPlan(plan) {
+  function editPlan(plan, push = true) {
     setForm({ ...blankForm, ...plan, domain_id: entry.id });
     setEditingId(plan.id);
     setScreen('form');
+    if (push) navigateModule?.('edit', plan.id);
   }
 
   async function submit(event) {
@@ -44,7 +61,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction }) {
     const url = editingId ? `/admin-api/membership-plans/${editingId}` : '/admin-api/membership-plans';
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(form) });
     await reload();
-    setScreen('list');
+    navigateModule?.();
   }
 
   if (screen === 'form') {
@@ -54,7 +71,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction }) {
         setForm={setForm}
         editingId={editingId}
         submit={submit}
-        cancel={() => setScreen('list')}
+        cancel={() => navigateModule?.()}
       />
     );
   }

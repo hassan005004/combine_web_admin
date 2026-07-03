@@ -17,7 +17,7 @@ const STATUS_COLORS = {
   rejected: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
 };
 
-export function FeatureRequestManager({ entry, items, reload, setHeaderAction }) {
+export function FeatureRequestManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const [screen, setScreen] = useState('list');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: '', email: '', description: '', status: 'pending', admin_notes: '' });
@@ -30,8 +30,24 @@ export function FeatureRequestManager({ entry, items, reload, setHeaderAction })
     return () => setHeaderAction(null);
   }, [screen]);
 
-  function startCreate() { setForm({ title: '', email: '', description: '', status: 'pending', admin_notes: '' }); setEditingId(null); setScreen('form'); }
-  function startEdit(item) { setForm({ status: item.status, admin_notes: item.admin_notes || '' }); setEditingId(item.id); setScreen('form'); }
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm({ title: '', email: '', description: '', status: 'pending', admin_notes: '' });
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const item = items.find((row) => String(row.id) === String(moduleItemId));
+      if (item) startEdit(item, false);
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items]);
+
+  function startCreate() { setForm({ title: '', email: '', description: '', status: 'pending', admin_notes: '' }); setEditingId(null); navigateModule?.('create'); }
+  function startEdit(item, push = true) { setForm({ status: item.status, admin_notes: item.admin_notes || '' }); setEditingId(item.id); setScreen('form'); if (push) navigateModule?.('edit', item.id); }
 
   async function submit(e) {
     e.preventDefault();
@@ -40,7 +56,7 @@ export function FeatureRequestManager({ entry, items, reload, setHeaderAction })
     } else {
       await request(`/admin-api/entries/${entry.id}/feature-requests`, { method: 'POST', body: JSON.stringify(form) });
     }
-    await reload(); setScreen('list');
+    await reload(); navigateModule?.();
   }
 
   if (screen === 'form') {
@@ -59,7 +75,7 @@ export function FeatureRequestManager({ entry, items, reload, setHeaderAction })
           {editingId && <Textarea label="Admin Notes" value={form.admin_notes} onChange={(v) => upd('admin_notes', v)} rows={3} />}
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update' : 'Save'}</button>
-            <button type="button" onClick={() => setScreen('list')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
+            <button type="button" onClick={() => navigateModule?.()} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
           </div>
         </form>
       </div>

@@ -5,7 +5,7 @@ import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/D
 
 const blank = (domainId) => ({ domain_id: domainId, question: '', answer: '', sorting: 0 });
 
-export function FaqManager({ entry, items, reload, setHeaderAction }) {
+export function FaqManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const [screen, setScreen] = useState('list');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(blank(entry.id));
@@ -17,14 +17,30 @@ export function FaqManager({ entry, items, reload, setHeaderAction }) {
     return () => setHeaderAction(null);
   }, [screen]);
 
-  function startCreate() { setForm(blank(entry.id)); setEditingId(null); setScreen('form'); }
-  function startEdit(item) { setForm({ question: item.question, answer: item.answer, sorting: item.sorting ?? 0 }); setEditingId(item.id); setScreen('form'); }
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm(blank(entry.id));
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const item = items.find((row) => String(row.id) === String(moduleItemId));
+      if (item) startEdit(item, false);
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items]);
+
+  function startCreate() { setForm(blank(entry.id)); setEditingId(null); navigateModule?.('create'); }
+  function startEdit(item, push = true) { setForm({ question: item.question, answer: item.answer, sorting: item.sorting ?? 0 }); setEditingId(item.id); setScreen('form'); if (push) navigateModule?.('edit', item.id); }
 
   async function submit(e) {
     e.preventDefault();
     const url = editingId ? `/admin-api/entries/${entry.id}/faqs/${editingId}` : `/admin-api/entries/${entry.id}/faqs`;
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(form) });
-    await reload(); setScreen('list');
+    await reload(); navigateModule?.();
   }
 
   const upd = (k, v) => setForm((c) => ({ ...c, [k]: v }));
@@ -39,7 +55,7 @@ export function FaqManager({ entry, items, reload, setHeaderAction }) {
           <Input label="Sort Order" type="number" value={form.sorting} onChange={(v) => upd('sorting', Number(v))} />
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update' : 'Save'}</button>
-            <button type="button" onClick={() => setScreen('list')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
+            <button type="button" onClick={() => navigateModule?.()} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
           </div>
         </form>
       </div>

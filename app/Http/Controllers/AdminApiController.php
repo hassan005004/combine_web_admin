@@ -9,9 +9,11 @@ use App\Models\MembershipPlan;
 use App\Models\Notification;
 use App\Models\NotificationSetting;
 use App\Models\EntryNote;
+use App\Models\EntitySmtpSetting;
 use App\Models\StaffUserEntity;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Services\EntitySmtpMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -59,7 +61,9 @@ class AdminApiController extends Controller
         $data['application_id'] = $data['application_id'] ?: null;
         $data['primary_color'] = $data['primary_color'] ?? '#000000';
         $data['secondary_color'] = $data['secondary_color'] ?? '#ffffff';
+        $data['show_in_apps_gallery'] = $request->boolean('show_in_apps_gallery');
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
+        $this->applyEntryLogo($request, $data);
 
         $entry = Domain::create($data);
 
@@ -72,7 +76,9 @@ class AdminApiController extends Controller
         $data['application_id'] = $data['application_id'] ?: null;
         $data['primary_color'] = $data['primary_color'] ?? ($domain->primary_color ?: '#000000');
         $data['secondary_color'] = $data['secondary_color'] ?? ($domain->secondary_color ?: '#ffffff');
+        $data['show_in_apps_gallery'] = $request->boolean('show_in_apps_gallery');
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
+        $this->applyEntryLogo($request, $data, $domain);
         $domain->update($data);
 
         return response()->json(['entry' => $domain->fresh()]);
@@ -80,6 +86,10 @@ class AdminApiController extends Controller
 
     public function destroyEntry(Domain $domain)
     {
+        if ($domain->logo_path && Storage::disk('public')->exists($domain->logo_path)) {
+            Storage::disk('public')->delete($domain->logo_path);
+        }
+
         $domain->delete();
 
         return response()->json(['success' => true]);
@@ -94,6 +104,7 @@ class AdminApiController extends Controller
             'features'              => MembershipFeature::where('domain_id', $domain->id)->orderBy('sorting')->get(),
             'notifications'         => Notification::with('logs')->where('domain_id', $domain->id)->latest()->get(),
             'notification_settings' => NotificationSetting::where('domain_id', $domain->id)->latest()->get(),
+            'smtp_setting'          => EntitySmtpSetting::where('domain_id', $domain->id)->first(),
             'devices'               => UserDevice::where('domain_id', $domain->id)->latest('last_seen_at')->get(),
             'pages'                 => \App\Models\Page::where('domain_id', $domain->id)->latest()->get(),
             'faqs'                  => \App\Models\Faq::where('domain_id', $domain->id)->orderBy('sorting')->get(),
@@ -122,7 +133,10 @@ class AdminApiController extends Controller
         $data['email'] = strtolower($data['email']);
         $data['is_active'] = $request->boolean('is_active');
 
-        return response()->json(['membership' => AppMembership::create($data)], 201);
+        $membership = AppMembership::create($data);
+        app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership, 'created');
+
+        return response()->json(['membership' => $membership], 201);
     }
 
     public function updateMembership(Request $request, AppMembership $membership)
@@ -137,12 +151,14 @@ class AdminApiController extends Controller
         $data['email'] = strtolower($data['email']);
         $data['is_active'] = $request->boolean('is_active');
         $membership->update($data);
+        app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership->fresh(), 'updated');
 
         return response()->json(['membership' => $membership->fresh()]);
     }
 
     public function destroyMembership(AppMembership $membership)
     {
+        app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership, 'deleted by admin');
         $membership->delete();
 
         return response()->json(['success' => true]);
@@ -163,6 +179,7 @@ class AdminApiController extends Controller
             'cancellation_details' => $data['details'] ?? $membership->cancellation_details,
             'cancellation_source' => $membership->cancellation_source ?: 'admin',
         ]);
+        app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership->fresh(), 'cancelled by admin');
 
         return response()->json(['membership' => $membership->fresh()]);
     }
@@ -180,8 +197,44 @@ class AdminApiController extends Controller
             'promo_discount' => $data['promo_discount'],
             'amount_paid'    => $data['amount_paid'],
         ]);
+        app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership->fresh(), 'promo applied', [
+            'Promo code' => $data['promo_code'],
+            'Promo discount' => $data['promo_discount'],
+            'Amount paid' => $data['amount_paid'],
+        ]);
 
         return response()->json(['membership' => $membership->fresh()]);
+    }
+
+    public function storeSmtpSetting(Request $request, Domain $domain)
+    {
+        $existing = EntitySmtpSetting::where('domain_id', $domain->id)->first();
+        $data = $this->validateSmtpSetting($request, $existing);
+        $data['domain_id'] = $domain->id;
+        $data['is_active'] = $request->boolean('is_active');
+
+        if (empty($data['password'])) {
+            unset($data['password']);
+        }
+
+        $setting = EntitySmtpSetting::updateOrCreate(
+            ['domain_id' => $domain->id],
+            $data
+        );
+
+        return response()->json(['setting' => $setting->fresh()]);
+    }
+
+    public function testSmtpSetting(Request $request, Domain $domain, EntitySmtpMailer $mailer)
+    {
+        $setting = EntitySmtpSetting::where('domain_id', $domain->id)->firstOrFail();
+        $data = $request->validate([
+            'to_email' => ['nullable', 'email'],
+        ]);
+
+        $mailer->test($setting, $data['to_email'] ?? null);
+
+        return response()->json(['success' => true, 'message' => 'SMTP test email sent successfully.']);
     }
 
     public function storePlan(Request $request)
@@ -463,6 +516,9 @@ class AdminApiController extends Controller
             'google_play_url' => ['nullable', 'url'],
             'app_store_url' => ['nullable', 'url'],
             'application_id' => ['nullable', 'string', 'max:255', Rule::unique('domains', 'application_id')->ignore($domain?->id)],
+            'logo' => ['nullable', 'image', 'max:2048'],
+            'remove_logo' => ['boolean'],
+            'show_in_apps_gallery' => ['boolean'],
             'cache_ttl_hours' => ['required', 'integer', 'min:1'],
             'seo_title' => ['nullable', 'string'],
             'seo_description' => ['nullable', 'string'],
@@ -477,6 +533,26 @@ class AdminApiController extends Controller
             'min_build_code' => ['nullable', 'string', 'max:20'],
             'force_update' => ['boolean'],
         ]);
+    }
+
+    private function applyEntryLogo(Request $request, array &$data, ?Domain $domain = null): void
+    {
+        unset($data['logo'], $data['remove_logo']);
+
+        if ($request->boolean('remove_logo') && $domain?->logo_path) {
+            if (Storage::disk('public')->exists($domain->logo_path)) {
+                Storage::disk('public')->delete($domain->logo_path);
+            }
+            $data['logo_path'] = null;
+        }
+
+        if ($request->hasFile('logo')) {
+            if ($domain?->logo_path && Storage::disk('public')->exists($domain->logo_path)) {
+                Storage::disk('public')->delete($domain->logo_path);
+            }
+
+            $data['logo_path'] = $request->file('logo')->store('entity-logos', 'public');
+        }
     }
 
     private function validatePlan(Request $request): array
@@ -507,6 +583,21 @@ class AdminApiController extends Controller
             'icon' => ['nullable', 'string', 'max:255'],
             'text' => ['nullable', 'string', 'max:255'],
             'sorting' => ['nullable', 'integer', 'min:0'],
+            'is_active' => ['boolean'],
+        ]);
+    }
+
+    private function validateSmtpSetting(Request $request, ?EntitySmtpSetting $setting = null): array
+    {
+        return $request->validate([
+            'admin_email' => ['required', 'email', 'max:255'],
+            'host' => ['required', 'string', 'max:255'],
+            'port' => ['required', 'integer', 'min:1', 'max:65535'],
+            'encryption' => ['nullable', Rule::in(['', 'tls', 'ssl'])],
+            'username' => ['nullable', 'string', 'max:255'],
+            'password' => [$setting ? 'nullable' : 'required', 'string', 'max:2000'],
+            'from_email' => ['required', 'email', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:255'],
             'is_active' => ['boolean'],
         ]);
     }

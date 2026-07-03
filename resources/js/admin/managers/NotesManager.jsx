@@ -8,7 +8,7 @@ const VISIBILITY_OPTIONS = [
   ['all', 'For All'],
 ];
 
-export function NotesManager({ entry, items, reload, setHeaderAction }) {
+export function NotesManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const [screen, setScreen] = useState('list');
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: '', body: '', visibility: 'only_me' });
@@ -22,16 +22,33 @@ export function NotesManager({ entry, items, reload, setHeaderAction }) {
     return () => setHeaderAction(null);
   }, [screen, setHeaderAction]);
 
+  useEffect(() => {
+    if (moduleAction === 'create') {
+      setForm({ title: '', body: '', visibility: 'only_me' });
+      setEditingId(null);
+      setScreen('form');
+      return;
+    }
+    if (moduleAction === 'edit' && moduleItemId) {
+      const note = items.find((item) => String(item.id) === String(moduleItemId));
+      if (note) editNote(note, false);
+      return;
+    }
+    setScreen('list');
+    setEditingId(null);
+  }, [moduleAction, moduleItemId, items]);
+
   function createNote() {
     setForm({ title: '', body: '', visibility: 'only_me' });
     setEditingId(null);
-    setScreen('form');
+    navigateModule?.('create');
   }
 
-  function editNote(note) {
+  function editNote(note, push = true) {
     setForm({ title: note.title || '', body: note.body || '', visibility: note.visibility || 'only_me' });
     setEditingId(note.id);
     setScreen('form');
+    if (push) navigateModule?.('edit', note.id);
   }
 
   async function submit(event) {
@@ -39,7 +56,7 @@ export function NotesManager({ entry, items, reload, setHeaderAction }) {
     const url = editingId ? `/admin-api/entries/${entry.id}/notes/${editingId}` : `/admin-api/entries/${entry.id}/notes`;
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(form) });
     await reload();
-    setScreen('list');
+    navigateModule?.();
   }
 
   if (screen === 'form') {
@@ -52,7 +69,7 @@ export function NotesManager({ entry, items, reload, setHeaderAction }) {
           <Select label="Visibility" value={form.visibility} onChange={(value) => setForm((current) => ({ ...current, visibility: value }))} options={VISIBILITY_OPTIONS} />
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update Note' : 'Save Note'}</button>
-            <button type="button" onClick={() => setScreen('list')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
+            <button type="button" onClick={() => navigateModule?.()} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
           </div>
         </form>
       </div>

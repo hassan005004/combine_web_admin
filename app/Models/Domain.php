@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Domain extends Model
 {
@@ -16,6 +17,8 @@ class Domain extends Model
         'google_play_url',
         'app_store_url',
         'application_id',
+        'logo_path',
+        'show_in_apps_gallery',
         'cache_ttl_hours',
         'seo_title',
         'seo_description',
@@ -34,8 +37,18 @@ class Domain extends Model
 
     protected $casts = [
         'ads_settings' => 'array',
+        'show_in_apps_gallery' => 'boolean',
         'force_update' => 'boolean',
     ];
+
+    protected $appends = [
+        'logo_url',
+    ];
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
+    }
 
     // Relationships
     public function pages()
@@ -71,5 +84,10 @@ class Domain extends Model
     public function membershipPlans()
     {
         return $this->hasMany(MembershipPlan::class);
+    }
+
+    public function smtpSetting()
+    {
+        return $this->hasOne(EntitySmtpSetting::class);
     }
 }

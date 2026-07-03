@@ -12,6 +12,7 @@ import { NotesManager } from '../managers/NotesManager';
 import { NotificationManager } from '../managers/NotificationManager';
 import { PagesManager } from '../managers/PagesManager';
 import { PlanManager } from '../managers/PlanManager';
+import { SmtpSettings } from '../managers/SmtpSettings';
 import { FileManager } from './FileManager';
 
 const screenTitles = {
@@ -19,6 +20,7 @@ const screenTitles = {
   memberships:    'Memberships',
   notifications:  'Notifications',
   fcm:            'FCM Settings',
+  smtp:           'SMTP Settings',
   users:          'Active Users',
   pages:          'Pages',
   files:          'File Manager',
@@ -31,10 +33,10 @@ const screenTitles = {
   'app-version':  'App Version & Force Update',
 };
 
-export function EntryDetails({ selectedEntry, details, detailTab, reloadDetails, reloadAll }) {
+export function EntryDetails({ selectedEntry, details, detailTab, moduleAction, moduleItemId, reloadDetails, reloadAll, navigateModule }) {
   const [headerAction, setHeaderAction] = useState(null);
 
-  const content = renderTab(detailTab, { selectedEntry, details, reloadDetails, reloadAll, setHeaderAction });
+  const content = renderTab(detailTab, { selectedEntry, details, moduleAction, moduleItemId, reloadDetails, reloadAll, setHeaderAction, navigateModule });
 
   return (
     <>
@@ -57,26 +59,29 @@ export function EntryDetails({ selectedEntry, details, detailTab, reloadDetails,
   );
 }
 
-function renderTab(tab, { selectedEntry, details, reloadDetails, reloadAll, setHeaderAction }) {
+function renderTab(tab, { selectedEntry, details, moduleAction, moduleItemId, reloadDetails, reloadAll, setHeaderAction, navigateModule }) {
+  const routeProps = { moduleAction, moduleItemId, navigateModule };
   switch (tab) {
     case 'plans':
-      return <PlanManager entry={selectedEntry} items={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <PlanManager entry={selectedEntry} items={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'memberships':
-      return <MembershipManager entry={selectedEntry} items={details.memberships || []} plans={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <MembershipManager entry={selectedEntry} items={details.memberships || []} plans={details.plans || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'notifications':
-      return <NotificationManager entry={selectedEntry} items={details.notifications || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <NotificationManager entry={selectedEntry} items={details.notifications || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'fcm':
       return <FcmSettings entry={selectedEntry} items={details.notification_settings || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+    case 'smtp':
+      return <SmtpSettings entry={selectedEntry} setting={details.smtp_setting || null} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
     case 'users':
       return <DeviceManager items={details.devices || []} reload={async () => { await reloadDetails(); await reloadAll(); }} />;
     case 'pages':
-      return <PagesManager entry={selectedEntry} items={details.pages || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <PagesManager entry={selectedEntry} items={details.pages || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'files':
       return <FileManager entry={selectedEntry} />;
     case 'notes':
-      return <NotesManager entry={selectedEntry} items={details.notes || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <NotesManager entry={selectedEntry} items={details.notes || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'faqs':
-      return <FaqManager entry={selectedEntry} items={details.faqs || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <FaqManager entry={selectedEntry} items={details.faqs || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'engagement':
       return (
         <EngagementManager
@@ -88,9 +93,9 @@ function renderTab(tab, { selectedEntry, details, reloadDetails, reloadAll, setH
         />
       );
     case 'feedback':
-      return <FeedbackManager entry={selectedEntry} items={details.feedbacks || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <FeedbackManager entry={selectedEntry} items={details.feedbacks || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'features':
-      return <FeatureRequestManager entry={selectedEntry} items={details.feature_requests || []} reload={reloadDetails} setHeaderAction={setHeaderAction} />;
+      return <FeatureRequestManager entry={selectedEntry} items={details.feature_requests || []} reload={reloadDetails} setHeaderAction={setHeaderAction} {...routeProps} />;
     case 'marketing':
       return <MarketingManager entry={selectedEntry} setHeaderAction={setHeaderAction} />;
     case 'app-version':

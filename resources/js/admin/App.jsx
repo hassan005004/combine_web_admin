@@ -19,6 +19,7 @@ const tabSlugByKey = {
   memberships:    'memberships',
   notifications:  'notifications',
   fcm:            'fcm-settings',
+  smtp:           'smtp-settings',
   users:          'active-users',
   pages:          'pages',
   files:          'files',
@@ -44,6 +45,34 @@ function routeFromPath(pathname = window.location.pathname) {
     return { page: 'entry-form', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
   }
 
+  const moduleCreateMatch = pathname.match(/^\/domains\/(\d+)\/([^/]+)\/create$/);
+  if (moduleCreateMatch) {
+    const selectedEntryId = Number(moduleCreateMatch[1]);
+    const screen = moduleCreateMatch[2];
+    return {
+      page: 'manage',
+      selectedEntryId,
+      detailTab: tabKeyBySlug[screen] || 'plans',
+      editingEntryId: null,
+      moduleAction: 'create',
+      moduleItemId: null,
+    };
+  }
+
+  const moduleEditMatch = pathname.match(/^\/domains\/(\d+)\/([^/]+)\/([^/]+)\/edit$/);
+  if (moduleEditMatch) {
+    const selectedEntryId = Number(moduleEditMatch[1]);
+    const screen = moduleEditMatch[2];
+    return {
+      page: 'manage',
+      selectedEntryId,
+      detailTab: tabKeyBySlug[screen] || 'plans',
+      editingEntryId: null,
+      moduleAction: 'edit',
+      moduleItemId: moduleEditMatch[3],
+    };
+  }
+
   const selectedMatch = pathname.match(/^\/domains\/(\d+)(?:\/([^/]+))?$/);
   if (selectedMatch) {
     const selectedEntryId = Number(selectedMatch[1]);
@@ -53,6 +82,8 @@ function routeFromPath(pathname = window.location.pathname) {
       selectedEntryId,
       detailTab: tabKeyBySlug[screen] || 'plans',
       editingEntryId: null,
+      moduleAction: null,
+      moduleItemId: null,
     };
   }
 
@@ -93,6 +124,8 @@ function AdminApp() {
   const [selectedEntryId, setSelectedEntryId] = useState(initialRoute.selectedEntryId);
   const [details, setDetails] = useState(null);
   const [detailTab, setDetailTab] = useState(initialRoute.detailTab || 'plans');
+  const [moduleAction, setModuleAction] = useState(initialRoute.moduleAction || null);
+  const [moduleItemId, setModuleItemId] = useState(initialRoute.moduleItemId || null);
   const [entryForm, setEntryForm] = useState(blankEntry);
   const [editingEntryId, setEditingEntryId] = useState(initialRoute.editingEntryId);
   const [busy, setBusy] = useState(false);
@@ -139,6 +172,8 @@ function AdminApp() {
     setPage(route.page);
     setSelectedEntryId(route.selectedEntryId);
     setDetailTab(route.detailTab || 'plans');
+    setModuleAction(route.moduleAction || null);
+    setModuleItemId(route.moduleItemId || null);
     setEditingEntryId(route.editingEntryId);
 
     if (route.page === 'entry-form' && !route.editingEntryId) {
@@ -156,6 +191,13 @@ function AdminApp() {
     }
 
     return `/domains/${entryId}/${tabSlugByKey[tab] || tabSlugByKey.plans}`;
+  }
+
+  function moduleUrl(entryId, tab, action = null, itemId = null) {
+    const base = selectedUrl(entryId, 'manage', tab);
+    if (action === 'create') return `${base}/create`;
+    if (action === 'edit' && itemId) return `${base}/${itemId}/edit`;
+    return base;
   }
 
   async function refresh() {
@@ -187,7 +229,7 @@ function AdminApp() {
   }
 
   function openEntryTab(entryId, tab) {
-    applyRoute({ page: 'manage', selectedEntryId: entryId, detailTab: tab, editingEntryId: null }, true, selectedUrl(entryId, 'manage', tab));
+    applyRoute({ page: 'manage', selectedEntryId: entryId, detailTab: tab, editingEntryId: null, moduleAction: null, moduleItemId: null }, true, selectedUrl(entryId, 'manage', tab));
   }
 
   function viewEntry(entryId) {
@@ -216,15 +258,24 @@ function AdminApp() {
     );
   }
 
+  function navigateModule(action = null, itemId = null, tab = detailTab) {
+    if (!selectedEntryId) return;
+    applyRoute(
+      { page: 'manage', selectedEntryId, detailTab: tab, editingEntryId: null, moduleAction: action, moduleItemId: itemId },
+      true,
+      moduleUrl(selectedEntryId, tab, action, itemId),
+    );
+  }
+
   async function saveEntry(event) {
     event.preventDefault();
     setBusy(true);
     setError('');
 
     try {
-      const method = editingEntryId ? 'PUT' : 'POST';
+      const method = 'POST';
       const url    = editingEntryId ? `/admin-api/entries/${editingEntryId}` : '/admin-api/entries';
-      await request(url, { method, body: JSON.stringify(entryForm) });
+      await request(url, { method, body: entryFormPayload(entryForm, editingEntryId) });
       const savedId = editingEntryId;
       await refresh(); // refresh entries list so sidebar select is up-to-date
       if (savedId) {
@@ -248,6 +299,42 @@ function AdminApp() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function entryFormPayload(form, editingId) {
+    const payload = new FormData();
+    if (editingId) {
+      payload.append('_method', 'PUT');
+    }
+
+    [
+      'title',
+      'entry_type',
+      'url',
+      'google_play_url',
+      'app_store_url',
+      'application_id',
+      'cache_ttl_hours',
+      'seo_title',
+      'seo_description',
+      'seo_keywords',
+      'privacy_policy',
+      'terms_conditions',
+      'support_policy',
+      'about_us',
+      'app_version',
+      'min_build_code',
+    ].forEach((key) => payload.append(key, form[key] ?? ''));
+
+    payload.append('show_in_apps_gallery', form.show_in_apps_gallery ? '1' : '0');
+    payload.append('force_update', form.force_update ? '1' : '0');
+    payload.append('remove_logo', form.remove_logo ? '1' : '0');
+
+    if (form.logo instanceof File) {
+      payload.append('logo', form.logo);
+    }
+
+    return payload;
   }
 
   function editEntry(entry) {
@@ -332,8 +419,11 @@ function AdminApp() {
               selectedEntry={selectedEntry}
               details={details}
               detailTab={detailTab}
+              moduleAction={moduleAction}
+              moduleItemId={moduleItemId}
               reloadDetails={() => selectedEntryId && loadDetails(selectedEntryId)}
               reloadAll={refresh}
+              navigateModule={navigateModule}
             />
           )}
           {page === 'manage' && selectedEntry && !details && (

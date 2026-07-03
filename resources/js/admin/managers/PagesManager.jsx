@@ -11,7 +11,7 @@ const PAGE_FIELDS = [
   { key: 'about_us',          label: 'About Us' },
 ];
 
-export function PagesManager({ entry, reload, setHeaderAction }) {
+export function PagesManager({ entry, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const [editingKey, setEditingKey] = useState(null); // null = list view
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -24,14 +24,23 @@ export function PagesManager({ entry, reload, setHeaderAction }) {
     }
   }, []);
 
-  function openPage(key) {
+  useEffect(() => {
+    if (moduleAction === 'edit' && moduleItemId && PAGE_FIELDS.some((page) => page.key === moduleItemId)) {
+      openPage(moduleItemId, false);
+      return;
+    }
+    setEditingKey(null);
+    setContent('');
+  }, [moduleAction, moduleItemId, entry]);
+
+  function openPage(key, push = true) {
     setContent(entry[key] || '');
     setEditingKey(key);
+    if (push) navigateModule?.('edit', key);
   }
 
   function closePage() {
-    setEditingKey(null);
-    setContent('');
+    navigateModule?.();
   }
 
   async function savePage(event) {
