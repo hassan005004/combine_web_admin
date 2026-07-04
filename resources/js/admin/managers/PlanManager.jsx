@@ -103,8 +103,8 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Name" value={form.name} onChange={(value) => update('name', value)} required />
-        <Input label="Monthly Price" value={form.monthly_price} onChange={(value) => update('monthly_price', value)} required />
-        <Input label="Yearly Price" value={form.yearly_price} onChange={(value) => update('yearly_price', value)} required />
+        <Input label="Monthly Price ($)" value={form.monthly_price} onChange={(value) => update('monthly_price', value)} required />
+        <Input label="Yearly Price ($)" value={form.yearly_price} onChange={(value) => update('yearly_price', value)} required />
         <Input label="Free Trial Days" type="number" value={form.free_trial_days ?? 0} onChange={(value) => update('free_trial_days', Number(value))} />
         <Input label="Tagline" value={form.tagline || ''} onChange={(value) => update('tagline', value)} />
         <Input label="Yearly Benefit" value={form.yearly_benefit || ''} onChange={(value) => update('yearly_benefit', value)} />
