@@ -10,6 +10,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     name: '',
     monthly_price: '0.00',
     yearly_price: '0.00',
+    free_trial_days: 0,
     tagline: '',
     yearly_benefit: '',
     sorting: 0,
@@ -80,7 +81,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     <>
       <DataRows
         items={items}
-        columns={['name', 'monthly_price', 'yearly_price', 'tagline', 'yearly_benefit']}
+        columns={['name', 'monthly_price', 'yearly_price', 'free_trial_days', 'tagline', 'yearly_benefit']}
         actions={(item) => (
           <ActionGroup>
             <EditButton label={`Edit ${item.name}`} onClick={() => editPlan(item)} />
@@ -104,6 +105,7 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
         <Input label="Name" value={form.name} onChange={(value) => update('name', value)} required />
         <Input label="Monthly Price" value={form.monthly_price} onChange={(value) => update('monthly_price', value)} required />
         <Input label="Yearly Price" value={form.yearly_price} onChange={(value) => update('yearly_price', value)} required />
+        <Input label="Free Trial Days" type="number" value={form.free_trial_days ?? 0} onChange={(value) => update('free_trial_days', Number(value))} />
         <Input label="Tagline" value={form.tagline || ''} onChange={(value) => update('tagline', value)} />
         <Input label="Yearly Benefit" value={form.yearly_benefit || ''} onChange={(value) => update('yearly_benefit', value)} />
         <Input label="Sorting" type="number" value={form.sorting ?? 0} onChange={(value) => update('sorting', Number(value))} />

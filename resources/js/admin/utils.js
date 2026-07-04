@@ -1,6 +1,8 @@
 export const blankEntry = {
   title: '',
   entry_type: 'both',
+  status: 'pending',
+  sort_order: 0,
   url: '',
   google_play_url: '',
   app_store_url: '',

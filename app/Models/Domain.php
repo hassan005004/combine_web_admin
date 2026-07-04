@@ -13,6 +13,8 @@ class Domain extends Model
     protected $fillable = [
         'title',
         'entry_type',
+        'status',
+        'sort_order',
         'url',
         'google_play_url',
         'app_store_url',
@@ -38,6 +40,7 @@ class Domain extends Model
     protected $casts = [
         'ads_settings' => 'array',
         'show_in_apps_gallery' => 'boolean',
+        'sort_order' => 'integer',
         'force_update' => 'boolean',
     ];
 

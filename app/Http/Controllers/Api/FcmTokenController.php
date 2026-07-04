@@ -55,36 +55,47 @@ class FcmTokenController extends Controller
     {
         $validated = $request->validate([
             'application_id' => ['required', 'string'],
-            'device_id' => ['nullable', 'string', 'max:255', 'required_without:fcm_token'],
-            'fcm_token' => ['nullable', 'string', 'required_without:device_id'],
-            'email' => ['nullable', 'email'],
+            'device_id'      => ['nullable', 'string', 'max:255'],
+            'fcm_token'      => ['nullable', 'string'],
+            'email'          => ['nullable', 'email'],
         ]);
 
-        $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
-        $email = isset($validated['email']) ? strtolower($validated['email']) : null;
+        $domain  = Domain::where('application_id', $validated['application_id'])->firstOrFail();
+        $email   = isset($validated['email']) ? strtolower($validated['email']) : null;
+        $deviceId = $validated['device_id'] ?? null;
+        $fcmToken = $validated['fcm_token'] ?? null;
 
-        $query = UserDevice::where('domain_id', $domain->id);
-
-        if (! empty($validated['device_id'])) {
-            $query->where('device_id', $validated['device_id']);
-        } else {
-            $query->where('fcm_token', $validated['fcm_token']);
+        // Require at least one identifier
+        if (empty($deviceId) && empty($fcmToken)) {
+            return response()->json(['message' => 'device_id or fcm_token required.'], 422);
         }
 
-        $device = $query->firstOrFail();
-        $device->update([
-            'email' => $email,
-            'last_seen_at' => now(),
-        ]);
+        // Build the unique key to find or create the record
+        $matchKey = [];
+        $matchKey['domain_id'] = $domain->id;
+
+        if (! empty($deviceId)) {
+            $matchKey['device_id'] = $deviceId;
+        } else {
+            $matchKey['fcm_token'] = $fcmToken;
+        }
+
+        $fillData = ['last_seen_at' => now()];
+        if ($email !== null)    $fillData['email']     = $email;
+        if (! empty($fcmToken)) $fillData['fcm_token'] = $fcmToken;
+        if (! empty($deviceId)) $fillData['device_id'] = $deviceId;
+
+        // updateOrCreate so a device-only ping (no FCM) still registers the device
+        $device = UserDevice::updateOrCreate($matchKey, $fillData);
 
         return response()->json([
             'success' => true,
             'message' => 'User activity updated.',
-            'data' => [
+            'data'    => [
                 'application_id' => $domain->application_id,
-                'email' => $device->email,
-                'device_id' => $device->device_id,
-                'last_seen_at' => $device->last_seen_at?->toIso8601String(),
+                'email'          => $device->email,
+                'device_id'      => $device->device_id,
+                'last_seen_at'   => $device->last_seen_at?->toIso8601String(),
             ],
         ]);
     }

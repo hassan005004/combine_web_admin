@@ -277,6 +277,14 @@ function AdminApp() {
     );
   }
 
+  async function reorderEntries(ids) {
+    await request('/admin-api/entries/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    await refresh();
+  }
+
   async function saveEntry(event) {
     event.preventDefault();
     setBusy(true);
@@ -320,6 +328,8 @@ function AdminApp() {
     [
       'title',
       'entry_type',
+      'status',
+      'sort_order',
       'url',
       'google_play_url',
       'app_store_url',
@@ -427,6 +437,7 @@ function AdminApp() {
               entries={entries}
               addEntry={addEntry}
               viewEntry={viewEntry}
+              reorderEntries={reorderEntries}
             />
           )}
           {page === 'entry-form' && (

@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::get('/app-config', [AppConfigController::class, 'show']);
 Route::post('/app-config', [AppConfigController::class, 'show']);
+Route::post('/membership-trial', [AppConfigController::class, 'startTrial']);
 Route::post('/fcm-token', [FcmTokenController::class, 'store']);
 Route::post('/user-active', [FcmTokenController::class, 'touch']);
 Route::post('/membership-cancel', [MembershipCancellationController::class, 'store']);

@@ -14,6 +14,7 @@ class MembershipPlan extends Model
         'name',
         'monthly_price',
         'yearly_price',
+        'free_trial_days',
         'tagline',
         'yearly_benefit',
         'sorting',
@@ -23,6 +24,7 @@ class MembershipPlan extends Model
     protected $casts = [
         'monthly_price' => 'decimal:2',
         'yearly_price' => 'decimal:2',
+        'free_trial_days' => 'integer',
         'is_active' => 'boolean',
     ];
 

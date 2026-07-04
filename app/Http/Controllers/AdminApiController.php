@@ -51,7 +51,7 @@ class AdminApiController extends Controller
     public function entries()
     {
         return response()->json([
-            'entries' => Domain::latest()->get(),
+            'entries' => Domain::orderBy('sort_order')->orderBy('title')->get(),
         ]);
     }
 
@@ -62,6 +62,7 @@ class AdminApiController extends Controller
         $data['primary_color'] = $data['primary_color'] ?? '#000000';
         $data['secondary_color'] = $data['secondary_color'] ?? '#ffffff';
         $data['show_in_apps_gallery'] = $request->boolean('show_in_apps_gallery');
+        $data['sort_order'] = empty($data['sort_order']) ? ((int) Domain::max('sort_order') + 1) : $data['sort_order'];
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
         $this->applyEntryLogo($request, $data);
 
@@ -82,6 +83,22 @@ class AdminApiController extends Controller
         $domain->update($data);
 
         return response()->json(['entry' => $domain->fresh()]);
+    }
+
+    public function reorderEntries(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['required', 'integer', 'exists:domains,id'],
+        ]);
+
+        foreach ($data['ids'] as $index => $id) {
+            Domain::where('id', $id)->update(['sort_order' => $index + 1]);
+        }
+
+        return response()->json([
+            'entries' => Domain::orderBy('sort_order')->orderBy('title')->get(),
+        ]);
     }
 
     public function destroyEntry(Domain $domain)
@@ -512,6 +529,8 @@ class AdminApiController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'entry_type' => ['required', Rule::in(['app', 'website', 'both', 'other'])],
+            'status' => ['required', Rule::in(['pending', 'started', 'working'])],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
             'url' => ['nullable', 'url'],
             'google_play_url' => ['nullable', 'url'],
             'app_store_url' => ['nullable', 'url'],
@@ -562,6 +581,7 @@ class AdminApiController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'monthly_price' => ['required', 'numeric', 'min:0'],
             'yearly_price' => ['required', 'numeric', 'min:0'],
+            'free_trial_days' => ['nullable', 'integer', 'min:0'],
             'tagline' => ['nullable', 'string', 'max:255'],
             'yearly_benefit' => ['nullable', 'string', 'max:255'],
             'sorting' => ['nullable', 'integer', 'min:0'],

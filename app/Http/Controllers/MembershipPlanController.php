@@ -72,6 +72,7 @@ class MembershipPlanController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'monthly_price' => ['required', 'numeric', 'min:0'],
             'yearly_price' => ['required', 'numeric', 'min:0'],
+            'free_trial_days' => ['nullable', 'integer', 'min:0'],
             'tagline' => ['nullable', 'string', 'max:255'],
             'yearly_benefit' => ['nullable', 'string', 'max:255'],
             'sorting' => ['nullable', 'integer', 'min:0'],

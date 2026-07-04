@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppMembership;
 use App\Models\Domain;
+use App\Models\MembershipPlan;
 use Illuminate\Http\Request;
 
 class AppConfigController extends Controller
@@ -66,11 +67,12 @@ class AppConfigController extends Controller
                     ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
                     ->where('is_active', true)
                     ->orderBy('sorting')
-                    ->get(['id', 'domain_id', 'name', 'monthly_price', 'yearly_price', 'tagline', 'yearly_benefit', 'sorting'])
+                    ->get(['id', 'domain_id', 'name', 'monthly_price', 'yearly_price', 'free_trial_days', 'tagline', 'yearly_benefit', 'sorting'])
                     ->map(fn ($plan) => [
                         'name' => $plan->name,
                         'monthly_price' => (float) $plan->monthly_price,
                         'yearly_price' => (float) $plan->yearly_price,
+                        'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
                         'tagline' => $plan->tagline,
                         'yearly_benefit' => $plan->yearly_benefit,
                         'features' => $plan->features
@@ -92,5 +94,50 @@ class AppConfigController extends Controller
                     ->values(),
             ],
         ]);
+    }
+
+    public function startTrial(Request $request)
+    {
+        $validated = $request->validate([
+            'application_id' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'plan' => ['required', 'string', 'max:255'],
+        ]);
+
+        $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
+        $email = strtolower($validated['email']);
+
+        $plan = MembershipPlan::where('domain_id', $domain->id)
+            ->where('name', $validated['plan'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $trialDays = (int) ($plan->free_trial_days ?? 0);
+        abort_if($trialDays <= 0, 422, 'Free trial is not available for this plan.');
+
+        $membership = AppMembership::updateOrCreate(
+            [
+                'domain_id' => $domain->id,
+                'email' => $email,
+            ],
+            [
+                'plan' => $plan->name,
+                'promo_code' => null,
+                'promo_discount' => 0,
+                'amount_paid' => 0,
+                'is_active' => true,
+                'expires_at' => now()->addDays($trialDays),
+                'cancelled_at' => null,
+                'cancellation_requested_at' => null,
+                'cancellation_reason' => null,
+                'cancellation_details' => null,
+                'cancellation_source' => 'free_trial',
+            ]
+        );
+
+        return $this->show(new Request([
+            'application_id' => $domain->application_id,
+            'email' => $email,
+        ]));
     }
 }

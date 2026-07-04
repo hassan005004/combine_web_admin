@@ -32,6 +32,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
         Route::get('/dashboard', [AdminApiController::class, 'dashboard']);
         Route::get('/entries', [AdminApiController::class, 'entries']);
         Route::post('/entries', [AdminApiController::class, 'storeEntry']);
+        Route::post('/entries/reorder', [AdminApiController::class, 'reorderEntries']);
         Route::put('/entries/{domain}', [AdminApiController::class, 'updateEntry']);
         Route::delete('/entries/{domain}', [AdminApiController::class, 'destroyEntry']);
         Route::get('/entries/{domain}', [AdminApiController::class, 'entryDetails']);

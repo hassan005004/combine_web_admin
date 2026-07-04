@@ -53,6 +53,15 @@ const DEFAULT_ADS = {
   native:      { enabled: false, unit_id: '', frequency: 3 },
 };
 
+// Google's official test unit IDs (Android)
+const TEST_IDS = {
+  bottom:      'ca-app-pub-3940256099942544/6300978111',
+  app_open:    'ca-app-pub-3940256099942544/9257395921',
+  full_screen: 'ca-app-pub-3940256099942544/1033173712',
+  rewarded:    'ca-app-pub-3940256099942544/5224354917',
+  native:      'ca-app-pub-3940256099942544/2247696110',
+};
+
 function hydrateAds(raw) {
   const out = {};
   for (const [key, defaults] of Object.entries(DEFAULT_ADS)) {
@@ -73,6 +82,16 @@ export function AdMobManager({ entry, reload }) {
       ...current,
       [type]: { ...current[type], [field]: value },
     }));
+  }
+
+  function useTestIds() {
+    setAds((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(DEFAULT_ADS)) {
+        next[key] = { ...next[key], enabled: true, unit_id: TEST_IDS[key] };
+      }
+      return next;
+    });
   }
 
   async function handleSave(e) {
@@ -210,19 +229,32 @@ export function AdMobManager({ entry, reload }) {
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">Type</th>
                 <th className="px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300">Android Test Unit ID</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {[
-                ['Banner',       'ca-app-pub-3940256099942544/6300978111'],
-                ['App Open',     'ca-app-pub-3940256099942544/9257395921'],
-                ['Interstitial', 'ca-app-pub-3940256099942544/1033173712'],
-                ['Rewarded',     'ca-app-pub-3940256099942544/5224354917'],
-                ['Native',       'ca-app-pub-3940256099942544/2247696110'],
-              ].map(([type, id]) => (
+                ['Banner',       'bottom',      'ca-app-pub-3940256099942544/6300978111'],
+                ['App Open',     'app_open',    'ca-app-pub-3940256099942544/9257395921'],
+                ['Interstitial', 'full_screen', 'ca-app-pub-3940256099942544/1033173712'],
+                ['Rewarded',     'rewarded',    'ca-app-pub-3940256099942544/5224354917'],
+                ['Native',       'native',      'ca-app-pub-3940256099942544/2247696110'],
+              ].map(([type, key, id]) => (
                 <tr key={type} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                   <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-300">{type}</td>
                   <td className="px-3 py-2 font-mono text-gray-500 dark:text-gray-400 select-all">{id}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateAd(key, 'unit_id', id);
+                        updateAd(key, 'enabled', true);
+                      }}
+                      className="rounded-md bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:hover:bg-violet-500/25 transition-colors whitespace-nowrap"
+                    >
+                      Use
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -231,7 +263,7 @@ export function AdMobManager({ entry, reload }) {
       </details>
 
       {/* Save */}
-      <div className="pt-2">
+      <div className="flex flex-wrap items-center gap-3 pt-2">
         <button
           type="submit"
           disabled={saving}
@@ -239,6 +271,16 @@ export function AdMobManager({ entry, reload }) {
         >
           {saving ? 'Saving…' : 'Save AdMob Settings'}
         </button>
+        <button
+          type="button"
+          onClick={useTestIds}
+          className="px-5 py-2 rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 text-sm font-semibold transition-colors"
+        >
+          🧪 Use Google Test IDs
+        </button>
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          Fills all fields with test IDs and enables all ad types. Don't forget to save.
+        </span>
       </div>
     </form>
   );

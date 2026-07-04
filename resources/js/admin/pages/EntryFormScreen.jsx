@@ -8,6 +8,12 @@ const TYPE_OPTIONS = [
   ['other',   'Other (no app / website)'],
 ];
 
+const STATUS_OPTIONS = [
+  ['pending', 'Pending'],
+  ['started', 'Started'],
+  ['working', 'Working'],
+];
+
 // Ad type metadata — label, icon emoji, description, frequency label
 const AD_TYPES = [
   {
@@ -109,6 +115,12 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               value={form.entry_type}
               onChange={(v) => update('entry_type', v)}
               options={TYPE_OPTIONS}
+            />
+            <Select
+              label="Status"
+              value={form.status || 'pending'}
+              onChange={(v) => update('status', v)}
+              options={STATUS_OPTIONS}
             />
             <Input
               label="Application ID"
