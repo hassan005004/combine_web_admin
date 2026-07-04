@@ -114,6 +114,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
         Route::post('/entries/{domain}/files/upload',[FileManagerController::class, 'upload']);
         Route::delete('/entries/{domain}/files',     [FileManagerController::class, 'destroy']);
 
+        Route::post('/settings/profile', [AdminApiController::class, 'updateProfile']);
         Route::post('/settings/email', [AdminApiController::class, 'updateEmail']);
         Route::post('/settings/password', [AdminApiController::class, 'updatePassword']);
 
@@ -155,6 +156,8 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/notification-settings/{any?}', AdminReactController::class)->where('any', '.*')->name('notification-settings.index');
     Route::get('/user-devices/{any?}', AdminReactController::class)->where('any', '.*')->name('user-devices.index');
     Route::get('/settings', AdminReactController::class)->name('settings');
+    Route::get('/account/profile', AdminReactController::class)->name('account.profile');
+    Route::get('/account/password', AdminReactController::class)->name('account.password');
     Route::get('/staff-users', AdminReactController::class)->name('staff-users.index');
     Route::get('/pages/{any?}', AdminReactController::class)->where('any', '.*')->name('pages.index');
 

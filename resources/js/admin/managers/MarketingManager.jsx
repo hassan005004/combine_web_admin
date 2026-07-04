@@ -145,17 +145,9 @@ function CampaignsTab({ entry, items, reload, setHeaderAction }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
-    setHeaderAction(form === null ? (
-      <button
-        type="button"
-        onClick={() => setForm(blankCampaign())}
-        className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium"
-      >
-        Add Campaign
-      </button>
-    ) : null);
+    setHeaderAction(null);
     return () => setHeaderAction(null);
-  }, [form, setHeaderAction]);
+  }, [setHeaderAction]);
 
   async function submit(event) {
     event.preventDefault();
@@ -190,16 +182,24 @@ function CampaignsTab({ entry, items, reload, setHeaderAction }) {
   }
 
   return (
-    <DataRows
-      items={items}
-      columns={['name', 'type', 'platform', 'objective', 'spent_amount', 'earned_amount', 'status']}
-      actions={(item) => (
-        <ActionGroup>
-          <EditButton label="Edit campaign" onClick={() => setForm({ ...blankCampaign(), ...item })} />
-          <DeleteButton url={`/admin-api/entries/${entry.id}/campaigns/${item.id}`} reload={reload} />
-        </ActionGroup>
-      )}
-    />
+    <>
+      <TabActionBar
+        title="Campaigns"
+        description="Create and track marketing campaigns for this app."
+        actionLabel="Add Campaign"
+        onAction={() => setForm(blankCampaign())}
+      />
+      <DataRows
+        items={items}
+        columns={['name', 'type', 'platform', 'objective', 'spent_amount', 'earned_amount', 'status']}
+        actions={(item) => (
+          <ActionGroup>
+            <EditButton label="Edit campaign" onClick={() => setForm({ ...blankCampaign(), ...item })} />
+            <DeleteButton url={`/admin-api/entries/${entry.id}/campaigns/${item.id}`} reload={reload} />
+          </ActionGroup>
+        )}
+      />
+    </>
   );
 }
 
@@ -208,13 +208,9 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
-    setHeaderAction(form === null ? (
-      <button type="button" onClick={() => setForm(blankRevenue())} className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium">
-        Add Revenue
-      </button>
-    ) : null);
+    setHeaderAction(null);
     return () => setHeaderAction(null);
-  }, [form, setHeaderAction]);
+  }, [setHeaderAction]);
 
   async function submit(event) {
     event.preventDefault();
@@ -242,6 +238,12 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
 
   return (
     <>
+      <TabActionBar
+        title="Revenue"
+        description="Add withdrawals, subscriptions, memberships, affiliate income, and other earnings."
+        actionLabel="Add Revenue"
+        onAction={() => setForm(blankRevenue())}
+      />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-gray-100 p-5 dark:border-gray-700">
         <SummaryCard label="Manual Revenue" value={money(summary?.total)} tone="good" />
         {Object.entries(summary?.by_source || {}).map(([source, amount]) => (
@@ -269,13 +271,9 @@ function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
-    setHeaderAction(form === null ? (
-      <button type="button" onClick={() => setForm(blankExpense())} className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium">
-        Add Expense
-      </button>
-    ) : null);
+    setHeaderAction(null);
     return () => setHeaderAction(null);
-  }, [form, setHeaderAction]);
+  }, [setHeaderAction]);
 
   async function submit(event) {
     event.preventDefault();
@@ -304,16 +302,42 @@ function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
   }
 
   return (
-    <DataRows
-      items={items}
-      columns={['date', 'category', 'amount', 'currency', 'description']}
-      actions={(item) => (
-        <ActionGroup>
-          <EditButton label="Edit expense" onClick={() => setForm({ ...item, campaign_id: item.campaign_id || '', date: dateValue(item.date) })} />
-          <DeleteButton url={`/admin-api/entries/${entry.id}/expenses/${item.id}`} reload={reload} />
-        </ActionGroup>
-      )}
-    />
+    <>
+      <TabActionBar
+        title="Expenses"
+        description="Record ad spend, tools, creative work, agency fees, and other costs."
+        actionLabel="Add Expense"
+        onAction={() => setForm(blankExpense())}
+      />
+      <DataRows
+        items={items}
+        columns={['date', 'category', 'amount', 'currency', 'description']}
+        actions={(item) => (
+          <ActionGroup>
+            <EditButton label="Edit expense" onClick={() => setForm({ ...item, campaign_id: item.campaign_id || '', date: dateValue(item.date) })} />
+            <DeleteButton url={`/admin-api/entries/${entry.id}/expenses/${item.id}`} reload={reload} />
+          </ActionGroup>
+        )}
+      />
+    </>
+  );
+}
+
+function TabActionBar({ title, description, actionLabel, onAction }) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-gray-100 p-5 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onAction}
+        className="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
+      >
+        {actionLabel}
+      </button>
+    </div>
   );
 }
 

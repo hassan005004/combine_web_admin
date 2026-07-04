@@ -519,6 +519,33 @@ class AdminApiController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name'             => ['required', 'string', 'max:255'],
+            'email'            => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'current_password' => ['nullable', 'string', 'current_password'],
+        ]);
+
+        if (strtolower($data['email']) !== strtolower($user->email) && empty($data['current_password'])) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Current password is required when changing email.',
+            ]);
+        }
+
+        $user->update([
+            'name'  => $data['name'],
+            'email' => strtolower($data['email']),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'user' => $user->fresh()->only(['name', 'email']),
+        ]);
+    }
+
     public function updatePassword(Request $request)
     {
         $request->validate([

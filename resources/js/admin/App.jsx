@@ -9,6 +9,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Entries } from './pages/Entries';
 import { EntryDetails } from './pages/EntryDetails';
 import { EntryFormScreen } from './pages/EntryFormScreen';
+import { PasswordSettings } from './pages/PasswordSettings';
+import { ProfileSettings } from './pages/ProfileSettings';
 import { RolesPage } from './pages/RolesPage';
 import { Settings } from './pages/Settings';
 import { StaffUsersPage } from './pages/StaffUsersPage';
@@ -94,6 +96,14 @@ function routeFromPath(pathname = window.location.pathname) {
 
   if (pathname === '/settings') {
     return { page: 'settings', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
+  }
+
+  if (pathname === '/account/profile') {
+    return { page: 'profile', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
+  }
+
+  if (pathname === '/account/password') {
+    return { page: 'password', selectedEntryId: null, detailTab: 'plans', editingEntryId: null };
   }
 
   if (pathname === '/roles') {
@@ -226,7 +236,15 @@ function AdminApp() {
   }
 
   function navigate(next) {
-    const urls = { dashboard: '/dashboard', settings: '/settings', roles: '/roles', 'staff-users': '/staff-users', entries: '/domains' };
+    const urls = {
+      dashboard: '/dashboard',
+      profile: '/account/profile',
+      password: '/account/password',
+      settings: '/settings',
+      roles: '/roles',
+      'staff-users': '/staff-users',
+      entries: '/domains',
+    };
     applyRoute(
       { page: next, selectedEntryId: null, detailTab: 'plans', editingEntryId: null },
       true,
@@ -468,7 +486,9 @@ function AdminApp() {
           {page === 'manage' && selectedEntry && !details && (
             <EntryScreenSkeleton />
           )}
-          {page === 'settings' && <Settings />}
+          {page === 'settings' && <Settings navigate={navigate} />}
+          {page === 'profile' && <ProfileSettings />}
+          {page === 'password' && <PasswordSettings />}
           {page === 'roles' && <RolesPage />}
           {page === 'staff-users' && <StaffUsersPage />}
         </main>

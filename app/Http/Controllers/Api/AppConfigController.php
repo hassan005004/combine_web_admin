@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\PublicAppPageController;
 use App\Models\AppMembership;
 use App\Models\Domain;
+use App\Models\Faq;
 use App\Models\MembershipPlan;
 use Illuminate\Http\Request;
 
@@ -66,6 +67,16 @@ class AppConfigController extends Controller
                 'about_us' => $domain->about_us,
             ],
             'page_urls' => PublicAppPageController::pageUrls($domain),
+            'faqs' => Faq::where('domain_id', $domain->id)
+                ->orderBy('sorting')
+                ->get(['id', 'question', 'answer', 'sorting'])
+                ->map(fn ($faq) => [
+                    'id' => $faq->id,
+                    'question' => $faq->question,
+                    'answer' => $faq->answer,
+                    'sorting' => (int) ($faq->sorting ?? 0),
+                ])
+                ->values(),
             'ads' => $domain->ads_settings ?? [],
             'auth' => [
                 'login_provider' => 'google',

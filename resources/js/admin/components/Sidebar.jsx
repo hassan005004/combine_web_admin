@@ -85,6 +85,10 @@ export function Sidebar({
             {link('dashboard', 'Dashboard', 'dashboard')}
             {link('entries',   'Entries',   'entries')}
             {link('staff-users', 'Staff Users', 'users')}
+
+            <div className="admin-sidebar__section">Account</div>
+            {link('profile',   'Profile',   'profile')}
+            {link('password',  'Password',  'password')}
             {link('settings',  'Settings',  'settings')}
           </>
         )}
@@ -113,6 +117,8 @@ function SidebarIcon({ name }) {
     version:      <path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2ZM7 5h2v4H7V5Zm0 5h2v2H7v-2Z" />,
     admob:        <path d="M2 11V5l4-2 4 2 4-2v6l-4 2-4-2-4 2Zm4-2V5.5L3.5 6.8V11L6 9.8v-.8Zm4 0V6l-2-1v3.5l.5.25L10 9Zm3-1.5L11 8V9.8l2 1V7.5Z" />,
     users:        <path d="M6.5 7a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5ZM2 14c.45-3.05 2-4.6 4.5-4.6S10.55 10.95 11 14H2Zm9.2-5.2a2.25 2.25 0 0 0 0-4.3 3.5 3.5 0 0 1 0 4.3ZM10.5 14h3.5c-.25-1.85-1.2-3.05-2.75-3.5.55.8.95 1.95 1.15 3.5h-1.9Z" />,
+    profile:      <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2.5 14c.45-3.2 2.3-4.8 5.5-4.8s5.05 1.6 5.5 4.8h-11Z" />,
+    password:     <path d="M4 7V5a4 4 0 0 1 8 0v2h1v7H3V7h1Zm2 0h4V5a2 2 0 1 0-4 0v2Zm1 3v2h2v-2H7Z" />,
     settings:     <path d="M8 5a3 3 0 1 0 0 6A3 3 0 0 0 8 5Zm-1 3a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6.34 2.34l-.9 1.56A5.97 5.97 0 0 0 4 4.73L2.27 4.5l-.77 1.33.93 1.35a6.1 6.1 0 0 0 0 1.64L1.5 10.17l.77 1.33L4 11.27a5.97 5.97 0 0 0 1.44.83l.9 1.56h1.32l.9-1.56A5.97 5.97 0 0 0 10 11.27l1.73.23.77-1.33-.93-1.35a6.1 6.1 0 0 0 0-1.64l.93-1.35-.77-1.33L10 4.73a5.97 5.97 0 0 0-1.44-.83l-.9-1.56H6.34Z" />,
   };
 

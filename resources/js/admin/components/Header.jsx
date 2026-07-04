@@ -43,8 +43,24 @@ export function Header() {
                 <div className="absolute right-0 mt-2 w-64 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-800">
                   <div className="px-3 py-2">
                     <div className="text-xs font-semibold uppercase text-gray-400">Signed in as</div>
+                    {user.name && <div className="mt-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{user.name}</div>}
                     <div className="mt-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100">{user.email}</div>
                   </div>
+                  <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
+                  <a
+                    href="/account/profile"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <ProfileIcon />
+                    Profile Settings
+                  </a>
+                  <a
+                    href="/account/password"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <LockIcon />
+                    Change Password
+                  </a>
                   <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
                   <form method="POST" action="/logout">
                     <input type="hidden" name="_token" value={csrf} />
@@ -62,6 +78,22 @@ export function Header() {
         </div>
       </div>
     </header>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2.5 14c.45-3.2 2.3-4.8 5.5-4.8s5.05 1.6 5.5 4.8h-11Z" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M4 7V5a4 4 0 0 1 8 0v2h1v7H3V7h1Zm2 0h4V5a2 2 0 1 0-4 0v2Zm1 3v2h2v-2H7Z" />
+    </svg>
   );
 }
 

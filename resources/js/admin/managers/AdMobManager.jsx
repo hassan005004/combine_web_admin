@@ -106,6 +106,7 @@ export function AdMobManager({ entry, reload }) {
       // Send the current entry values for the required title / entry_type fields.
       payload.append('title',           entry.title          || '');
       payload.append('entry_type',      entry.entry_type     || 'app');
+      payload.append('status',          entry.status         || 'pending');
       payload.append('application_id',  entry.application_id || '');
       payload.append('cache_ttl_hours', String(entry.cache_ttl_hours || 24));
       payload.append('show_in_apps_gallery', entry.show_in_apps_gallery ? '1' : '0');
