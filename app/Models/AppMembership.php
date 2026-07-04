@@ -12,6 +12,7 @@ class AppMembership extends Model
     protected $fillable = [
         'domain_id',
         'email',
+        'device_id',
         'plan',
         'promo_code',
         'promo_discount',

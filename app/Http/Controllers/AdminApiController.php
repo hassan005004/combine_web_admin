@@ -285,6 +285,16 @@ class AdminApiController extends Controller
 
     public function destroyPlan(MembershipPlan $plan)
     {
+        $hasLinkedMemberships = AppMembership::where('domain_id', $plan->domain_id)
+            ->where('plan', $plan->name)
+            ->exists();
+
+        if ($hasLinkedMemberships) {
+            throw ValidationException::withMessages([
+                'plan' => 'This plan is already linked to memberships and cannot be removed.',
+            ]);
+        }
+
         $plan->delete();
 
         return response()->json(['success' => true]);

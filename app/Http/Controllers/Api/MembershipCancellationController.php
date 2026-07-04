@@ -14,7 +14,8 @@ class MembershipCancellationController extends Controller
     {
         $validated = $request->validate([
             'application_id' => ['required', 'string'],
-            'email' => ['required', 'email'],
+            'device_id' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email'],
             'reason' => ['nullable', 'string', 'max:255'],
             'details' => ['nullable', 'string'],
         ]);
@@ -22,7 +23,7 @@ class MembershipCancellationController extends Controller
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
 
         $membership = AppMembership::where('domain_id', $domain->id)
-            ->where('email', strtolower($validated['email']))
+            ->where('device_id', trim($validated['device_id']))
             ->firstOrFail();
 
         $membership->update([

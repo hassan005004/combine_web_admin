@@ -9,6 +9,7 @@ use App\Http\Controllers\DataFeedController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\FileManagerController;
 use App\Http\Controllers\MarketingController;
+use App\Http\Controllers\PublicAppPageController;
 use App\Http\Controllers\RoleController;
 
 /*
@@ -25,6 +26,8 @@ use App\Http\Controllers\RoleController;
 Route::redirect('/', 'login');
 
 Route::get('/apps', AppShowcaseController::class)->name('apps.showcase');
+Route::get('/app-pages/{applicationId}/{page}', [PublicAppPageController::class, 'show'])
+    ->name('app-pages.show');
 
 Route::middleware(['auth:sanctum', 'verified'])->group(function () {
 

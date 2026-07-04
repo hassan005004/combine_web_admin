@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\PublicAppPageController;
 use App\Models\AppMembership;
 use App\Models\Domain;
 use App\Models\MembershipPlan;
@@ -14,20 +15,30 @@ class AppConfigController extends Controller
     {
         $validated = $request->validate([
             'application_id' => ['required', 'string'],
+            'device_id' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email'],
         ]);
 
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
+        $deviceId = $validated['device_id'] ?? null;
         $email = $validated['email'] ?? null;
         $membership = null;
 
-        if ($email) {
-            $membership = AppMembership::where('domain_id', $domain->id)
+        $membershipQuery = AppMembership::where('domain_id', $domain->id)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+
+        if ($deviceId) {
+            $membership = (clone $membershipQuery)
+                ->where('device_id', $deviceId)
+                ->first();
+        }
+
+        if (! $membership && $email) {
+            $membership = (clone $membershipQuery)
                 ->where('email', strtolower($email))
-                ->where('is_active', true)
-                ->where(function ($query) {
-                    $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
                 ->first();
         }
 
@@ -54,6 +65,7 @@ class AppConfigController extends Controller
                 'support_policy' => $domain->support_policy,
                 'about_us' => $domain->about_us,
             ],
+            'page_urls' => PublicAppPageController::pageUrls($domain),
             'ads' => $domain->ads_settings ?? [],
             'auth' => [
                 'login_provider' => 'google',
@@ -101,11 +113,13 @@ class AppConfigController extends Controller
         $validated = $request->validate([
             'application_id' => ['required', 'string'],
             'email' => ['required', 'email'],
+            'device_id' => ['required', 'string', 'max:255'],
             'plan' => ['required', 'string', 'max:255'],
         ]);
 
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
         $email = strtolower($validated['email']);
+        $deviceId = trim($validated['device_id']);
 
         $plan = MembershipPlan::where('domain_id', $domain->id)
             ->where('name', $validated['plan'])
@@ -118,9 +132,11 @@ class AppConfigController extends Controller
         $membership = AppMembership::updateOrCreate(
             [
                 'domain_id' => $domain->id,
-                'email' => $email,
+                'device_id' => $deviceId,
             ],
             [
+                'email' => $email,
+                'device_id' => $deviceId,
                 'plan' => $plan->name,
                 'promo_code' => null,
                 'promo_discount' => 0,
@@ -137,6 +153,7 @@ class AppConfigController extends Controller
 
         return $this->show(new Request([
             'application_id' => $domain->application_id,
+            'device_id' => $deviceId,
             'email' => $email,
         ]));
     }
