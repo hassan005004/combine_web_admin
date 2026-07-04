@@ -84,7 +84,7 @@
 <body>
     <main>
         <header>
-            <div class="app-name">{{ $app->title }}</div>
+            {{-- <div class="app-name">{{ $app->title }}</div> --}}
             <h1>{{ $title }}</h1>
         </header>
         <article>

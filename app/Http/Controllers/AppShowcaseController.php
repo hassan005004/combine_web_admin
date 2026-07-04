@@ -21,6 +21,7 @@ class AppShowcaseController extends Controller
                     'application_id' => $app->application_id,
                     'description' => $app->seo_description ?: str($app->about_us)->stripTags()->limit(140)->toString(),
                     'google_play_url' => $googlePlayUrl,
+                    'google_play_market_url' => 'market://details?id='.$app->application_id,
                     'app_store_url' => $app->app_store_url,
                     'logo_url' => $app->logo_url,
                     'primary_color' => $app->primary_color ?: '#6d5dfc',

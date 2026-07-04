@@ -192,7 +192,6 @@
     <main class="shell">
         <header class="header">
             <div>
-                <div class="eyebrow">App Showcase</div>
                 <h1>Explore Our Apps</h1>
                 <p class="subcopy">Install apps directly from Google Play or the App Store.</p>
             </div>
@@ -217,7 +216,14 @@
                             <p class="description">{{ $app['description'] ?: 'Install the latest version from the official store.' }}</p>
                         </div>
                         <div class="actions">
-                            <a class="button button-primary" href="{{ $app['google_play_url'] }}" target="_blank" rel="noopener">GET</a>
+                            <a
+                                class="button button-primary js-store-link"
+                                href="{{ $app['google_play_url'] }}"
+                                data-market-url="{{ $app['google_play_market_url'] }}"
+                                data-web-url="{{ $app['google_play_url'] }}"
+                                target="_blank"
+                                rel="noopener"
+                            >GET</a>
                             @if($app['app_store_url'])
                                 <a class="button button-secondary" href="{{ $app['app_store_url'] }}" target="_blank" rel="noopener">iOS</a>
                             @endif
@@ -227,5 +233,25 @@
             </section>
         @endif
     </main>
+    <script>
+        document.querySelectorAll('.js-store-link').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                var isAndroid = /Android/i.test(navigator.userAgent || '');
+                if (!isAndroid) return;
+
+                event.preventDefault();
+                var marketUrl = link.getAttribute('data-market-url');
+                var webUrl = link.getAttribute('data-web-url') || link.href;
+                var openedAt = Date.now();
+
+                window.location.href = marketUrl;
+                window.setTimeout(function () {
+                    if (Date.now() - openedAt < 1600) {
+                        window.location.href = webUrl;
+                    }
+                }, 900);
+            });
+        });
+    </script>
 </body>
 </html>
