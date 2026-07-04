@@ -37,7 +37,7 @@ return new class extends Migration
                 $table->foreignId('campaign_id')->nullable()->constrained('campaigns')->nullOnDelete();
                 $table->string('category')->default('advertising');
                 $table->decimal('amount', 10, 2);
-                $table->string('currency', 3)->default('USD');
+                $table->string('currency', 3)->default('PKR');
                 $table->string('description')->nullable();
                 $table->date('date');
                 $table->timestamps();

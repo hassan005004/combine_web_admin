@@ -94,7 +94,7 @@ return new class extends Migration
             $table->foreignId('domain_id')->constrained('domains')->onDelete('cascade');
             $table->string('source');                       // subscriptions|ads|affiliate|other
             $table->decimal('amount', 10, 2);
-            $table->string('currency', 3)->default('USD');
+            $table->string('currency', 3)->default('PKR');
             $table->string('description')->nullable();
             $table->date('date');
             $table->timestamps();

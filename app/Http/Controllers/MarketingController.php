@@ -295,6 +295,7 @@ class MarketingController extends Controller
             'date'        => ['required', 'date'],
         ]);
 
+        $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
         $data['domain_id'] = $domain->id;
 
         return response()->json(['entry' => RevenueEntry::create($data)], 201);
@@ -310,6 +311,7 @@ class MarketingController extends Controller
             'date'        => ['required', 'date'],
         ]);
 
+        $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
         $revenueEntry->update($data);
 
         return response()->json(['entry' => $revenueEntry->fresh()]);
@@ -346,7 +348,7 @@ class MarketingController extends Controller
 
     private function validateExpense(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'campaign_id' => ['nullable', 'exists:campaigns,id'],
             'category' => ['required', 'string', 'max:100'],
             'amount' => ['required', 'numeric', 'min:0'],
@@ -354,5 +356,9 @@ class MarketingController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             'date' => ['required', 'date'],
         ]);
+
+        $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
+
+        return $data;
     }
 }

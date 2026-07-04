@@ -227,7 +227,7 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
         <form onSubmit={submit} className="space-y-4">
           <Select label="Source" value={form.source} onChange={(value) => update('source', value)} options={REVENUE_SOURCE_OPTS} />
           <Input label="Withdraw / Received Amount" type="number" value={form.amount} onChange={(value) => update('amount', value)} required />
-          <Input label="Currency" value={form.currency || 'USD'} onChange={(value) => update('currency', value)} />
+          <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
           <Input label="Date" type="date" value={dateValue(form.date)} onChange={(value) => update('date', value)} required />
           <Input label="Detail / Notes" value={form.description || ''} onChange={(value) => update('description', value)} />
           <FormActions isEdit={!!form.id} onCancel={() => setForm(null)} />
@@ -292,7 +292,7 @@ function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
           <Select label="Category" value={form.category} onChange={(value) => update('category', value)} options={EXPENSE_CATEGORY_OPTS} />
           <Select label="Linked Campaign" value={String(form.campaign_id || '')} onChange={(value) => update('campaign_id', value)} options={campaignOptions} />
           <Input label="Amount Spent" type="number" value={form.amount} onChange={(value) => update('amount', value)} required />
-          <Input label="Currency" value={form.currency || 'USD'} onChange={(value) => update('currency', value)} />
+          <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
           <Input label="Date" type="date" value={dateValue(form.date)} onChange={(value) => update('date', value)} required />
           <Input label="Description" value={form.description || ''} onChange={(value) => update('description', value)} />
           <FormActions isEdit={!!form.id} onCancel={() => setForm(null)} />
@@ -403,7 +403,7 @@ function blankRevenue() {
   return {
     source: 'google_ads',
     amount: '',
-    currency: 'USD',
+    currency: 'PKR',
     description: '',
     date: new Date().toISOString().slice(0, 10),
   };
@@ -414,14 +414,14 @@ function blankExpense() {
     campaign_id: '',
     category: 'advertising',
     amount: '',
-    currency: 'USD',
+    currency: 'PKR',
     description: '',
     date: new Date().toISOString().slice(0, 10),
   };
 }
 
 function money(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return `Rs. ${Number(value || 0).toFixed(2)}`;
 }
 
 function sourceLabel(value) {
