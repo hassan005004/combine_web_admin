@@ -13,6 +13,13 @@
       0 => 'Laravel\\Jetstream\\JetstreamServiceProvider',
     ),
   ),
+  'laravel/passkeys' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Laravel\\Passkeys\\PasskeysServiceProvider',
+    ),
+  ),
   'laravel/sail' => 
   array (
     'providers' => 

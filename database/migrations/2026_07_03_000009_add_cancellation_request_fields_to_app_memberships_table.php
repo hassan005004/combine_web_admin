@@ -9,8 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('app_memberships', function (Blueprint $table) {
+            $anchorColumn = Schema::hasColumn('app_memberships', 'cancelled_at')
+                ? 'cancelled_at'
+                : (Schema::hasColumn('app_memberships', 'expires_at') ? 'expires_at' : 'updated_at');
+
             if (! Schema::hasColumn('app_memberships', 'cancellation_requested_at')) {
-                $table->timestamp('cancellation_requested_at')->nullable()->after('cancelled_at');
+                $table->timestamp('cancellation_requested_at')->nullable()->after($anchorColumn);
             }
 
             if (! Schema::hasColumn('app_memberships', 'cancellation_reason')) {
