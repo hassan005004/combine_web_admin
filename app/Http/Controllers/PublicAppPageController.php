@@ -6,7 +6,7 @@ use App\Models\Domain;
 
 class PublicAppPageController extends Controller
 {
-    private const PUBLIC_BASE_URL = 'https://controlhub.zahidaz.com';
+    private const PUBLIC_BASE_URL = 'https://controlhub.taqwa360.com';
 
     private const PAGES = [
         'about-us' => [
