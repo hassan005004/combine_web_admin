@@ -64,6 +64,7 @@ class AppConfigController extends Controller
                 'privacy_policy' => $domain->privacy_policy,
                 'terms_conditions' => $domain->terms_conditions,
                 'support_policy' => $domain->support_policy,
+                'delete_policy' => $domain->delete_policy,
                 'about_us' => $domain->about_us,
             ],
             'page_urls' => PublicAppPageController::pageUrls($domain),

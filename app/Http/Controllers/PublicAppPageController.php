@@ -6,6 +6,8 @@ use App\Models\Domain;
 
 class PublicAppPageController extends Controller
 {
+    private const PUBLIC_BASE_URL = 'https://controlhub.zahidaz.com';
+
     private const PAGES = [
         'about-us' => [
             'column' => 'about_us',
@@ -22,6 +24,10 @@ class PublicAppPageController extends Controller
         'support-policy' => [
             'column' => 'support_policy',
             'title' => 'Support Policy',
+        ],
+        'delete-policy' => [
+            'column' => 'delete_policy',
+            'title' => 'Delete Policy',
         ],
     ];
 
@@ -50,12 +56,17 @@ class PublicAppPageController extends Controller
                 continue;
             }
 
-            $urls[$definition['column']] = route('app-pages.show', [
-                'applicationId' => $domain->application_id,
-                'page' => $slug,
-            ]);
+            $urls[$definition['column']] = self::publicUrl(
+                $domain->application_id,
+                $slug,
+            );
         }
 
         return $urls;
+    }
+
+    public static function publicUrl(string $applicationId, string $page): string
+    {
+        return rtrim(self::PUBLIC_BASE_URL, '/') . '/' . rawurlencode($applicationId) . '/' . rawurlencode($page);
     }
 }

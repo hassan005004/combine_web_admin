@@ -28,6 +28,7 @@ class Domain extends Model
         'privacy_policy',
         'terms_conditions',
         'support_policy',
+        'delete_policy',
         'about_us',
         'ads_settings',
         'primary_color',

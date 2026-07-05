@@ -26,6 +26,12 @@ use App\Http\Controllers\RoleController;
 Route::redirect('/', 'login');
 
 Route::get('/apps', AppShowcaseController::class)->name('apps.showcase');
+Route::get('/{applicationId}/{page}', [PublicAppPageController::class, 'show'])
+    ->where([
+        'applicationId' => '[A-Za-z0-9_.]+',
+        'page' => 'about-us|privacy-policy|terms-and-conditions|support-policy|delete-policy',
+    ])
+    ->name('app-pages.pretty');
 Route::get('/app-pages/{applicationId}/{page}', [PublicAppPageController::class, 'show'])
     ->name('app-pages.show');
 

@@ -8,6 +8,7 @@ const PAGE_FIELDS = [
   { key: 'privacy_policy',    label: 'Privacy Policy' },
   { key: 'terms_conditions',  label: 'Terms & Conditions' },
   { key: 'support_policy',    label: 'Support Policy' },
+  { key: 'delete_policy',     label: 'Delete Policy' },
   { key: 'about_us',          label: 'About Us' },
 ];
 

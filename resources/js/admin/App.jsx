@@ -359,6 +359,7 @@ function AdminApp() {
       'privacy_policy',
       'terms_conditions',
       'support_policy',
+      'delete_policy',
       'about_us',
       'app_version',
       'min_build_code',

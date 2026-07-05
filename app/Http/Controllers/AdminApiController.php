@@ -582,6 +582,7 @@ class AdminApiController extends Controller
             'privacy_policy' => ['nullable', 'string'],
             'terms_conditions' => ['nullable', 'string'],
             'support_policy' => ['nullable', 'string'],
+            'delete_policy' => ['nullable', 'string'],
             'about_us' => ['nullable', 'string'],
             'primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'secondary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
