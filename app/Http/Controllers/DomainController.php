@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Domain;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class DomainController extends Controller
@@ -40,6 +41,7 @@ class DomainController extends Controller
         ]);
 
         $validated['ads_settings'] = $this->adsSettingsFromRequest($request);
+        $this->filterUnavailableDomainColumns($validated);
 
         Domain::create($validated);
 
@@ -72,6 +74,7 @@ class DomainController extends Controller
         ]);
 
         $validated['ads_settings'] = $this->adsSettingsFromRequest($request);
+        $this->filterUnavailableDomainColumns($validated);
 
         $domain->update($validated);
 
@@ -98,5 +101,23 @@ class DomainController extends Controller
         }
 
         return $settings;
+    }
+
+    private function filterUnavailableDomainColumns(array &$data): void
+    {
+        foreach ([
+            'privacy_policy',
+            'terms_conditions',
+            'support_policy',
+            'delete_policy',
+            'about_us',
+            'cache_ttl_hours',
+            'primary_color',
+            'secondary_color',
+        ] as $column) {
+            if (array_key_exists($column, $data) && ! Schema::hasColumn('domains', $column)) {
+                unset($data[$column]);
+            }
+        }
     }
 }

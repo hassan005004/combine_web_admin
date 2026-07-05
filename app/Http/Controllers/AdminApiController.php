@@ -16,6 +16,7 @@ use App\Models\UserDevice;
 use App\Services\EntitySmtpMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -563,7 +564,7 @@ class AdminApiController extends Controller
 
     private function validateEntry(Request $request, ?Domain $domain = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'entry_type' => ['required', Rule::in(['app', 'website', 'both', 'other'])],
             'status' => ['required', Rule::in(['pending', 'started', 'working'])],
@@ -590,6 +591,26 @@ class AdminApiController extends Controller
             'min_build_code' => ['nullable', 'string', 'max:20'],
             'force_update' => ['boolean'],
         ]);
+
+        foreach ([
+            'privacy_policy',
+            'terms_conditions',
+            'support_policy',
+            'delete_policy',
+            'about_us',
+            'cache_ttl_hours',
+            'primary_color',
+            'secondary_color',
+            'app_version',
+            'min_build_code',
+            'force_update',
+        ] as $column) {
+            if (array_key_exists($column, $data) && ! Schema::hasColumn('domains', $column)) {
+                unset($data[$column]);
+            }
+        }
+
+        return $data;
     }
 
     private function applyEntryLogo(Request $request, array &$data, ?Domain $domain = null): void
