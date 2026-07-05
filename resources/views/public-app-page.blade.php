@@ -65,6 +65,37 @@
             color: var(--accent);
         }
 
+        article,
+        article * {
+            color: var(--fg) !important;
+        }
+
+        article a,
+        article a * {
+            color: var(--accent) !important;
+            text-decoration: underline;
+            text-underline-offset: 0.12em;
+            word-break: break-word;
+        }
+
+        article strong,
+        article b,
+        article h1,
+        article h2,
+        article h3,
+        article h4,
+        article h5,
+        article h6 {
+            color: var(--fg) !important;
+        }
+
+        article p,
+        article li,
+        article span,
+        article div {
+            color: var(--fg) !important;
+        }
+
         img, video, iframe {
             max-width: 100%;
         }
