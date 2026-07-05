@@ -1,4 +1,5 @@
-/bootstrap/cache
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
 /.phpunit.cache
 /node_modules
 /public/build
