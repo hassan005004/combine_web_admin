@@ -195,7 +195,7 @@ class NotificationController extends Controller
                 // Log each attempt
                 NotificationLog::create([
                     'notification_id' => $notification->id,
-                    'user_id'         => $device->id,
+                    'user_id'         => null,
                     'fcm_token'       => $device->fcm_token,
                     'success'         => $success,
                     'response'        => $errorReason,
