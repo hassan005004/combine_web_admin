@@ -28,6 +28,7 @@ class AdminApiController extends Controller
         return response()->json([
             'stats' => [
                 'entries' => Domain::count(),
+                'started_entries' => Domain::where('status', 'started')->count(),
                 'apps' => Domain::whereIn('entry_type', ['app', 'both'])->count(),
                 'websites' => Domain::whereIn('entry_type', ['website', 'both'])->count(),
                 'memberships' => AppMembership::where('is_active', true)
