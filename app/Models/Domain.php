@@ -13,6 +13,7 @@ class Domain extends Model
     protected $fillable = [
         'title',
         'entry_type',
+        'resources',
         'status',
         'sort_order',
         'url',
@@ -40,6 +41,7 @@ class Domain extends Model
 
     protected $casts = [
         'ads_settings' => 'array',
+        'resources' => 'array',
         'show_in_apps_gallery' => 'boolean',
         'sort_order' => 'integer',
         'force_update' => 'boolean',

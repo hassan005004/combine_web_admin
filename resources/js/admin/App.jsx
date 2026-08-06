@@ -365,6 +365,8 @@ function AdminApp() {
       'min_build_code',
     ].forEach((key) => payload.append(key, form[key] ?? ''));
 
+    (form.resources || []).forEach((resource) => payload.append('resources[]', resource));
+
     payload.append('show_in_apps_gallery', form.show_in_apps_gallery ? '1' : '0');
     payload.append('force_update', form.force_update ? '1' : '0');
     payload.append('remove_logo', form.remove_logo ? '1' : '0');

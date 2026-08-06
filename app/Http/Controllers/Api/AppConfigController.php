@@ -55,6 +55,10 @@ class AppConfigController extends Controller
                 'title' => $domain->title,
                 'entry_type' => $domain->entry_type,
                 'url' => $domain->url,
+                'app_version' => $domain->app_version,
+                'min_build_code' => $domain->min_build_code,
+                'force_update' => (bool) $domain->force_update,
+                'google_play_url' => $domain->google_play_url ?: ($domain->application_id ? 'https://play.google.com/store/apps/details?id='.$domain->application_id : null),
                 'colors' => [
                     'primary' => $domain->primary_color,
                     'secondary' => $domain->secondary_color,

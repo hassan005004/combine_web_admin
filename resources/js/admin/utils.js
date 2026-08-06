@@ -1,6 +1,7 @@
 export const blankEntry = {
   title: '',
   entry_type: 'both',
+  resources: ['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'app-version'],
   status: 'pending',
   sort_order: 0,
   url: '',

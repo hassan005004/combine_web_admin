@@ -568,6 +568,8 @@ class AdminApiController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'entry_type' => ['required', Rule::in(['app', 'website', 'both', 'other'])],
+            'resources' => ['nullable', 'array'],
+            'resources.*' => ['string', Rule::in(['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'app-version'])],
             'status' => ['required', Rule::in(['pending', 'started', 'working'])],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'url' => ['nullable', 'url'],

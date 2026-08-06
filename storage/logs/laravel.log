@@ -15747,3 +15747,26 @@
 [stacktrace]
 #0 {main}
 "} 
+[2026-08-05 23:47:09] local.ERROR: PHP Parse error: Syntax error, unexpected T_NS_SEPARATOR, expecting ';' on line 1 {"exception":"[object] (Psy\\Exception\\ParseErrorException(code: 0): PHP Parse error: Syntax error, unexpected T_NS_SEPARATOR, expecting ';' on line 1 at D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/Exception/ParseErrorException.php:44)
+[stacktrace]
+#0 D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/CodeCleaner.php(657): Psy/Exception/ParseErrorException::fromParseError()
+#1 D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/CodeCleaner.php(273): Psy/CodeCleaner->parse()
+#2 D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/Shell.php(1399): Psy/CodeCleaner->clean()
+#3 D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/Shell.php(1506): Psy/Shell->appendCode()
+#4 D:/xampp/htdocs/hassan/combine_web_admin/vendor/psy/psysh/src/Shell.php(2215): Psy/Shell->setCode()
+#5 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/tinker/src/Console/TinkerCommand.php(77): Psy/Shell->execute()
+#6 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(36): Laravel/Tinker/Console/TinkerCommand->handle()
+#7 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate/Container/BoundMethod::Illuminate/Container/{closure}()
+#8 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate/Container/Util::unwrapIfClosure()
+#9 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate/Container/BoundMethod::callBoundMethod()
+#10 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Container/Container.php(799): Illuminate/Container/BoundMethod::call()
+#11 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Console/Command.php(211): Illuminate/Container/Container->call()
+#12 D:/xampp/htdocs/hassan/combine_web_admin/vendor/symfony/console/Command/Command.php(341): Illuminate/Console/Command->execute()
+#13 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run()
+#14 D:/xampp/htdocs/hassan/combine_web_admin/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run()
+#15 D:/xampp/htdocs/hassan/combine_web_admin/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand()
+#16 D:/xampp/htdocs/hassan/combine_web_admin/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun()
+#17 D:/xampp/htdocs/hassan/combine_web_admin/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run()
+#18 D:/xampp/htdocs/hassan/combine_web_admin/artisan(35): Illuminate/Foundation/Console/Kernel->handle()
+#19 {main}
+"} 

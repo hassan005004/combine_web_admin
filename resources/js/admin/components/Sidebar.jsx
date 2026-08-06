@@ -3,6 +3,9 @@ export function Sidebar({
   selectedEntryId, detailTab, changeSelectedEntry,
   navigateSelected, leaveSelectedEntry, editEntry,
 }) {
+  const assignedResources = selectedEntry?.resources;
+  const hasResource = (key) => !Array.isArray(assignedResources) || assignedResources.includes(key);
+  const section = (label, keys) => keys.some(hasResource) && <div className="admin-sidebar__section">{label}</div>;
   const link = (key, label, icon) => (
     <button type="button" onClick={() => navigate(key)}
       className={`admin-sidebar__link w-full ${page === key || (key === 'entries' && page === 'entry-form') ? 'admin-sidebar__link--active' : ''}`}>
@@ -12,6 +15,7 @@ export function Sidebar({
   );
 
   const ml = (tab, label, icon) => (
+    hasResource(tab) &&
     <button type="button" onClick={() => navigateSelected('manage', tab)}
       className={`admin-sidebar__link w-full ${page === 'manage' && detailTab === tab ? 'admin-sidebar__link--active' : ''}`}>
       <SidebarIcon name={icon} />
@@ -55,25 +59,25 @@ export function Sidebar({
             </button>
             {ml('users',        'Active Users',    'users')}
 
-            <div className="admin-sidebar__section">Monetisation</div>
+            {section('Monetisation', ['plans', 'memberships'])}
             {ml('plans',       'Plans',       'plans')}
             {ml('memberships', 'Memberships', 'memberships')}
 
-            <div className="admin-sidebar__section">Engagement</div>
+            {section('Engagement', ['notifications', 'faqs', 'feedback', 'features'])}
             {ml('notifications', 'Notifications', 'notifications')}
             {ml('faqs',          'FAQs',          'faq')}
             {ml('feedback',      'Feedback',      'feedback')}
             {ml('features',      'Features',      'feature_req')}
 
-            <div className="admin-sidebar__section">Marketing</div>
+            {section('Marketing', ['marketing'])}
             {ml('marketing', 'Marketing & Revenue', 'marketing')}
 
-            <div className="admin-sidebar__section">Content</div>
+            {section('Content', ['pages', 'notes', 'files'])}
             {ml('pages', 'Pages',    'pages')}
             {ml('notes', 'Notes',    'notes')}
             {ml('files', 'Files',    'files')}
 
-            <div className="admin-sidebar__section">Settings</div>
+            {section('Settings', ['fcm', 'smtp', 'admob', 'app-version'])}
             {ml('fcm',          'FCM Settings',    'fcm')}
             {ml('smtp',         'SMTP Settings',   'smtp')}
             {ml('admob',        'AdMob',           'admob')}

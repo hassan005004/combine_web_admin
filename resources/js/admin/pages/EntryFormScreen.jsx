@@ -59,6 +59,14 @@ const AD_TYPES = [
 function showsApp(type)     { return type === 'app'  || type === 'both'; }
 function showsWebsite(type) { return type === 'website' || type === 'both'; }
 
+const RESOURCE_OPTIONS = [
+  ['users', 'Active Users'], ['plans', 'Plans'], ['memberships', 'Memberships'],
+  ['notifications', 'Notifications'], ['faqs', 'FAQs'], ['feedback', 'Feedback'],
+  ['features', 'Feature Requests'], ['marketing', 'Marketing & Revenue'],
+  ['pages', 'Pages'], ['notes', 'Notes'], ['files', 'Files'], ['fcm', 'FCM Settings'],
+  ['smtp', 'SMTP Settings'], ['admob', 'AdMob'], ['app-version', 'App Version'],
+];
+
 export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntry, busy }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateAd = (type, field, value) =>
@@ -185,6 +193,17 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
                 </div>
               )}
             </div>
+          </div>
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 shadow rounded-lg p-5">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Entity resources</h2>
+          <p className="mb-4 text-xs text-gray-400">Select the resources that should appear in this entity&apos;s left sidebar.</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {RESOURCE_OPTIONS.map(([key, label]) => {
+              const checked = (form.resources || []).includes(key);
+              return <label key={key} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 hover:border-violet-300 dark:border-gray-700 dark:text-gray-200"><input type="checkbox" checked={checked} onChange={() => update('resources', checked ? (form.resources || []).filter((item) => item !== key) : [...(form.resources || []), key])} className="h-4 w-4 accent-violet-600" />{label}</label>;
+            })}
           </div>
         </section>
 
