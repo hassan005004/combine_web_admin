@@ -24,6 +24,7 @@ export const blankEntry = {
   app_version: '',
   min_build_code: '',
   force_update: false,
+  social_links: { facebook: '', instagram: '', youtube: '', twitter: '', linkedin: '', whatsapp: '' },
   ads: {
     bottom:      { enabled: false, unit_id: '', frequency: 0 },
     app_open:    { enabled: false, unit_id: '', frequency: 0 },

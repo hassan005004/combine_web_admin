@@ -32,6 +32,7 @@ class Domain extends Model
         'delete_policy',
         'about_us',
         'ads_settings',
+        'social_links',
         'primary_color',
         'secondary_color',
         'app_version',
@@ -41,6 +42,7 @@ class Domain extends Model
 
     protected $casts = [
         'ads_settings' => 'array',
+        'social_links' => 'array',
         'resources' => 'array',
         'show_in_apps_gallery' => 'boolean',
         'sort_order' => 'integer',

@@ -80,6 +80,7 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
     }));
 
   const updateAdsense = (field, value) => updateAd('adsense', field, value);
+  const updateSocial = (key, value) => setForm((current) => ({ ...current, social_links: { ...(current.social_links || {}), [key]: value } }));
 
   const [logoPreview, setLogoPreview] = useState(form.logo_url || null);
 
@@ -196,6 +197,14 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
                 </div>
               )}
             </div>
+          </div>
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 shadow rounded-lg p-5">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Social links</h2>
+          <p className="mb-4 text-xs text-gray-400">These links appear as social icons in the website footer.</p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {Object.entries({ facebook: 'Facebook URL', instagram: 'Instagram URL', youtube: 'YouTube URL', twitter: 'X / Twitter URL', linkedin: 'LinkedIn URL', whatsapp: 'WhatsApp URL' }).map(([key, label]) => <Input key={key} label={label} type="url" value={form.social_links?.[key] || ''} onChange={(value) => updateSocial(key, value)} placeholder="https://" />)}
           </div>
         </section>
 

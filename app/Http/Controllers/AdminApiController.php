@@ -593,7 +593,15 @@ class AdminApiController extends Controller
             'app_version' => ['nullable', 'string', 'max:20'],
             'min_build_code' => ['nullable', 'string', 'max:20'],
             'force_update' => ['boolean'],
+            'social_links' => ['nullable', 'array'],
+            'social_links.*' => ['nullable', 'url', 'max:500'],
         ]);
+
+        $data['social_links'] = collect($data['social_links'] ?? [])
+            ->only(['facebook', 'instagram', 'youtube', 'twitter', 'linkedin', 'whatsapp'])
+            ->map(fn ($url) => trim((string) $url))
+            ->filter()
+            ->all();
 
         foreach ([
             'privacy_policy',

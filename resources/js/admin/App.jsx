@@ -179,7 +179,7 @@ function AdminApp() {
         native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
         adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
       };
-      setEntryForm({ ...blankEntry, ...entry, ads });
+      setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads });
     }
   }, [entries, editingEntryId, page]);
 
@@ -366,6 +366,8 @@ function AdminApp() {
       'min_build_code',
     ].forEach((key) => payload.append(key, form[key] ?? ''));
 
+    Object.entries(form.social_links || {}).forEach(([key, value]) => payload.append(`social_links[${key}]`, value || ''));
+
     (form.resources || []).forEach((resource) => payload.append('resources[]', resource));
 
     payload.append('show_in_apps_gallery', form.show_in_apps_gallery ? '1' : '0');
@@ -399,7 +401,7 @@ function AdminApp() {
       native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
       adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
     };
-    setEntryForm({ ...blankEntry, ...entry, ads });
+    setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads });
     // Keep selectedEntryId so the entry sidebar stays visible
     applyRoute(
       { page: 'entry-form', selectedEntryId: entry.id, detailTab: detailTab, editingEntryId: entry.id },

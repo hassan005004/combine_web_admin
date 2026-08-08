@@ -73,6 +73,7 @@ class AppConfigController extends Controller
                 'about_us' => $domain->about_us,
             ],
             'page_urls' => PublicAppPageController::pageUrls($domain),
+            'social_links' => $domain->social_links ?? [],
             'faqs' => Faq::where('domain_id', $domain->id)
                 ->orderBy('sorting')
                 ->get(['id', 'question', 'answer', 'sorting'])
