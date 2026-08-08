@@ -177,6 +177,7 @@ function AdminApp() {
         full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
         rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
         native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
+        adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
       };
       setEntryForm({ ...blankEntry, ...entry, ads });
     }
@@ -396,6 +397,7 @@ function AdminApp() {
       full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
       rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
       native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
+      adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
     };
     setEntryForm({ ...blankEntry, ...entry, ads });
     // Keep selectedEntryId so the entry sidebar stays visible

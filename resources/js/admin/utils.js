@@ -30,6 +30,7 @@ export const blankEntry = {
     full_screen: { enabled: false, unit_id: '', frequency: 5 },
     rewarded:    { enabled: false, unit_id: '', frequency: 0 },
     native:      { enabled: false, unit_id: '', frequency: 3 },
+    adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto' },
   },
 };
 

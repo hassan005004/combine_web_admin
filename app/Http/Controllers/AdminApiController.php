@@ -787,6 +787,13 @@ class AdminApiController extends Controller
             ];
         }
 
+        $settings['adsense'] = [
+            'enabled' => $request->boolean('ads.adsense.enabled'),
+            'client_id' => $request->input('ads.adsense.client_id'),
+            'slot_id' => $request->input('ads.adsense.slot_id'),
+            'format' => $request->input('ads.adsense.format', 'auto'),
+        ];
+
         return $settings;
     }
 }

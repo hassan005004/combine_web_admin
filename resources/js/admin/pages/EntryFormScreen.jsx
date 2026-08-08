@@ -78,6 +78,8 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
       },
     }));
 
+  const updateAdsense = (field, value) => updateAd('adsense', field, value);
+
   const [logoPreview, setLogoPreview] = useState(form.logo_url || null);
 
   useEffect(() => {
@@ -213,11 +215,12 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">📱</span>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {form.entry_type === 'website' ? 'Website Ads Settings' : 'AdMob Settings'}
+                {form.entry_type === 'website' ? 'Google AdSense Settings' : form.entry_type === 'both' ? 'AdMob + Google AdSense Settings' : 'AdMob Settings'}
               </h2>
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">
-              Enter your AdMob unit IDs from the{' '}
+              {form.entry_type === 'website' ? 'Enter your AdSense publisher and slot IDs from the Google AdSense dashboard.' : form.entry_type === 'both' ? 'Configure the native app AdMob units and website AdSense settings below.' : <>Enter your AdMob unit IDs from the{' '}</>}
+              {form.entry_type === 'app' && <>
               <a
                 href="https://admob.google.com"
                 target="_blank"
@@ -226,10 +229,14 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               >
                 AdMob dashboard
               </a>
-              . Use test IDs during development.
+              . Use test IDs during development.</>}
             </p>
 
-            <div className="space-y-4">
+            {showsWebsite(form.entry_type) && <div className="mb-6 grid gap-4 rounded-lg border border-green-200 bg-green-50 p-4 md:grid-cols-2">
+              {['client_id', 'slot_id'].map((field) => <Input key={field} label={field === 'client_id' ? 'Publisher / Client ID' : 'Ad Slot ID'} value={form.ads?.adsense?.[field] || ''} onChange={(value) => updateAdsense(field, value)} placeholder={field === 'client_id' ? 'ca-pub-XXXXXXXXXXXXXXXX' : '1234567890'} />)}
+              <label className="flex items-center gap-3 text-sm font-semibold text-gray-700"><input type="checkbox" checked={Boolean(form.ads?.adsense?.enabled)} onChange={(event) => updateAdsense('enabled', event.target.checked)} className="h-4 w-4 accent-violet-600" />Enable website AdSense</label>
+            </div>}
+            {showsApp(form.entry_type) && <div className="space-y-4">
               {AD_TYPES.map(({ key, label, emoji, description, showFrequency, frequencyHint }) => {
                 const ad = form.ads?.[key] || { enabled: false, unit_id: '', frequency: 0 };
                 return (
@@ -294,7 +301,7 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
                   </div>
                 );
               })}
-            </div>
+            </div>}
 
             {/* Test ID helper */}
             <details className="mt-4">

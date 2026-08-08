@@ -54,6 +54,7 @@ class AppConfigController extends Controller
                 'application_id' => $domain->application_id,
                 'title' => $domain->title,
                 'entry_type' => $domain->entry_type,
+                'resources' => array_values($domain->resources ?? []),
                 'url' => $domain->url,
                 'app_version' => $domain->app_version,
                 'min_build_code' => $domain->min_build_code,
