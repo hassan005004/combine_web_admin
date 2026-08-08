@@ -208,12 +208,12 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
         </section>
 
         {/* ── AdMob Settings ───────────────────────────────────────────── */}
-        {showsApp(form.entry_type) && (
+        {(showsApp(form.entry_type) || form.entry_type === 'website') && (
           <section className="bg-white dark:bg-gray-800 shadow rounded-lg p-5">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">📱</span>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                AdMob Settings
+                {form.entry_type === 'website' ? 'Website Ads Settings' : 'AdMob Settings'}
               </h2>
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">

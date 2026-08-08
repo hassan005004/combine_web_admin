@@ -22,7 +22,7 @@ const screenTitles = {
   notifications:  'Notifications',
   fcm:            'FCM Settings',
   smtp:           'SMTP Settings',
-  admob:          'AdMob Settings',
+  admob:          'AdMob / Website Ads',
   users:          'Active Users',
   pages:          'Pages',
   files:          'File Manager',

@@ -4,7 +4,9 @@ export function Sidebar({
   navigateSelected, leaveSelectedEntry, editEntry,
 }) {
   const assignedResources = selectedEntry?.resources;
-  const hasResource = (key) => !Array.isArray(assignedResources) || assignedResources.includes(key);
+  const hasResource = (key) => key === 'admob' && selectedEntry?.entry_type === 'website'
+    ? true
+    : !Array.isArray(assignedResources) || assignedResources.includes(key);
   const section = (label, keys) => keys.some(hasResource) && <div className="admin-sidebar__section">{label}</div>;
   const link = (key, label, icon) => (
     <button type="button" onClick={() => navigate(key)}
