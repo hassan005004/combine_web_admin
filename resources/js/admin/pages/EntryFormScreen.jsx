@@ -68,6 +68,7 @@ const RESOURCE_OPTIONS = [
 ];
 
 export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntry, busy }) {
+  const hasResource = (key) => !Array.isArray(form.resources) || form.resources.includes(key);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateAd = (type, field, value) =>
     setForm((current) => ({
@@ -210,7 +211,7 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
         </section>
 
         {/* ── AdMob Settings ───────────────────────────────────────────── */}
-        {(showsApp(form.entry_type) || form.entry_type === 'website') && (
+        {hasResource('admob') && (showsApp(form.entry_type) || showsWebsite(form.entry_type)) && (
           <section className="bg-white dark:bg-gray-800 shadow rounded-lg p-5">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">📱</span>
