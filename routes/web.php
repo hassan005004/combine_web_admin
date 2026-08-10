@@ -39,6 +39,7 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
 
     Route::prefix('admin-api')->group(function () {
         Route::get('/dashboard', [AdminApiController::class, 'dashboard']);
+        Route::post('/migrate', [AdminApiController::class, 'runMigrations']);
         Route::get('/entries', [AdminApiController::class, 'entries']);
         Route::post('/entries', [AdminApiController::class, 'storeEntry']);
         Route::post('/entries/reorder', [AdminApiController::class, 'reorderEntries']);

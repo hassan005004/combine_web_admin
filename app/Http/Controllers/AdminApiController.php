@@ -16,6 +16,7 @@ use App\Models\UserDevice;
 use App\Services\EntitySmtpMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +24,24 @@ use Illuminate\Validation\Rule;
 
 class AdminApiController extends Controller
 {
+    public function runMigrations()
+    {
+        $exitCode = Artisan::call('migrate', ['--force' => true]);
+        $output = Artisan::output();
+
+        if ($exitCode !== 0) {
+            return response()->json([
+                'message' => 'Database migration failed.',
+                'output' => $output,
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Database migrations completed.',
+            'output' => $output,
+        ]);
+    }
+
     public function dashboard()
     {
         return response()->json([

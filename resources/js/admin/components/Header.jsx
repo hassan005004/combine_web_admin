@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { csrf } from '../api';
+import { csrf, request } from '../api';
 
 export function Header() {
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
   const [profileOpen, setProfileOpen] = useState(false);
+  const [migrating, setMigrating] = useState(false);
   const user = window.adminUser || {};
 
   function toggleDark() {
@@ -14,11 +15,31 @@ export function Header() {
     localStorage.setItem('dark-mode', next ? 'true' : 'false');
   }
 
+  async function runMigrations() {
+    if (migrating) return;
+    setMigrating(true);
+    try {
+      await request('/admin-api/migrate', { method: 'POST' });
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   return (
     <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur-md dark:border-gray-700/60 dark:bg-gray-900/90">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex min-h-16 items-center justify-end gap-3 py-3">
           <div className="flex shrink-0 items-center justify-end gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={runMigrations}
+              disabled={migrating}
+              title="Run pending database migrations"
+            >
+              <DatabaseIcon />
+              {migrating ? 'Migrating...' : 'Migrate'}
+            </button>
             <button
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
               type="button"
@@ -93,6 +114,15 @@ function LockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <path d="M4 7V5a4 4 0 0 1 8 0v2h1v7H3V7h1Zm2 0h4V5a2 2 0 1 0-4 0v2Zm1 3v2h2v-2H7Z" />
+    </svg>
+  );
+}
+
+function DatabaseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <ellipse cx="12" cy="5" rx="8" ry="3" stroke="currentColor" strokeWidth="2" />
+      <path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }
