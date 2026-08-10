@@ -38,6 +38,7 @@ export function StaffUsersPage() {
       entity_shares: (user.staff_entities || []).map((item) => ({
         domain_id: item.domain_id,
         share_percent: item.share_percent ?? 0,
+        notes: item.notes || '',
       })),
     });
     setEditingId(user.id);
@@ -158,7 +159,7 @@ function StaffUserForm({ form, setForm, entries, editingId, busy, onSubmit, onCa
 
       return {
         ...current,
-        entity_shares: [...existing, { domain_id: entryId, share_percent: 0 }],
+        entity_shares: [...existing, { domain_id: entryId, share_percent: 0, notes: '' }],
       };
     });
   }
@@ -169,6 +170,17 @@ function StaffUserForm({ form, setForm, entries, editingId, busy, onSubmit, onCa
       entity_shares: (current.entity_shares || []).map((item) => (
         Number(item.domain_id) === Number(entryId)
           ? { ...item, share_percent: sharePercent }
+          : item
+      )),
+    }));
+  }
+
+  function updateNotes(entryId, notes) {
+    setForm((current) => ({
+      ...current,
+      entity_shares: (current.entity_shares || []).map((item) => (
+        Number(item.domain_id) === Number(entryId)
+          ? { ...item, notes }
           : item
       )),
     }));
@@ -207,6 +219,7 @@ function StaffUserForm({ form, setForm, entries, editingId, busy, onSubmit, onCa
                   <th className="px-3 py-2 text-left">Entry</th>
                   <th className="px-3 py-2 text-left">Type</th>
                   <th className="px-3 py-2 text-left">Share %</th>
+                  <th className="px-3 py-2 text-left">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -237,6 +250,16 @@ function StaffUserForm({ form, setForm, entries, editingId, busy, onSubmit, onCa
                           value={shareMap.get(entry.id)?.share_percent ?? 0}
                           onChange={(event) => updateShare(entry.id, Number(event.target.value))}
                           className="w-28 rounded-lg border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 dark:bg-gray-900 dark:border-gray-700"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <textarea
+                          rows="1"
+                          disabled={!selected}
+                          value={shareMap.get(entry.id)?.notes ?? ''}
+                          onChange={(event) => updateNotes(entry.id, event.target.value)}
+                          placeholder="Optional note"
+                          className="min-w-56 rounded-lg border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 dark:bg-gray-900 dark:border-gray-700"
                         />
                       </td>
                     </tr>
@@ -287,6 +310,7 @@ function EntityBadges({ items }) {
         <span key={item.id} className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-100">
           <span>{item.domain?.title || `Entry #${item.domain_id}`}</span>
           <span className="font-semibold text-violet-700 dark:text-violet-300">{Number(item.share_percent || 0).toFixed(2)}%</span>
+          {item.notes && <span className="max-w-64 truncate text-gray-500" title={item.notes}>{item.notes}</span>}
         </span>
       ))}
     </div>

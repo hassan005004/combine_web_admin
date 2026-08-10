@@ -13,6 +13,7 @@ class StaffUserEntity extends Model
         'user_id',
         'domain_id',
         'share_percent',
+        'notes',
     ];
 
     protected $casts = [

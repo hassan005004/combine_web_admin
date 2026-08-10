@@ -736,6 +736,7 @@ class AdminApiController extends Controller
             'entity_shares' => ['nullable', 'array'],
             'entity_shares.*.domain_id' => ['required', 'exists:domains,id'],
             'entity_shares.*.share_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'entity_shares.*.notes' => ['nullable', 'string', 'max:2000'],
         ]);
     }
 
@@ -755,6 +756,7 @@ class AdminApiController extends Controller
                 ],
                 [
                     'share_percent' => $entityShare['share_percent'] ?? 0,
+                    'notes' => $entityShare['notes'] ?? null,
                 ]
             );
 

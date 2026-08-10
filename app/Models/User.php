@@ -70,7 +70,7 @@ class User extends Authenticatable
     public function assignedEntities()
     {
         return $this->belongsToMany(Domain::class, 'staff_user_entities')
-            ->withPivot('share_percent')
+            ->withPivot('share_percent', 'notes')
             ->withTimestamps();
     }
 

@@ -18,15 +18,8 @@
                 <x-input id="password" type="password" name="password" required autocomplete="current-password" />                
             </div>
         </div>
-        <div class="flex items-center justify-between mt-6">
-            @if (Route::has('password.request'))
-                <div class="mr-1">
-                    <a class="text-sm underline hover:no-underline" href="{{ route('password.request') }}">
-                        {{ __('Forgot Password?') }}
-                    </a>
-                </div>
-            @endif            
-            <x-button class="ml-3">
+        <div class="mt-6 flex justify-end">
+            <x-button>
                 {{ __('Sign in') }}
             </x-button>            
         </div>
