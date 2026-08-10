@@ -76,15 +76,15 @@ export function MarketingManager({ entry, setHeaderAction }) {
         ))}
       </div>
 
-      {tab === 'overview' && <OverviewTab summary={data.finance_summary} campaigns={data.campaigns || []} revenue={data.revenue || []} expenses={data.expenses || []} />}
+      {tab === 'overview' && <OverviewTab summary={data.finance_summary} campaigns={data.campaigns || []} revenue={data.revenue || []} expenses={data.expenses || []} allocations={data.allocations || []} />}
       {tab === 'campaigns' && <CampaignsTab entry={entry} items={data.campaigns || []} reload={load} setHeaderAction={setHeaderAction} />}
-      {tab === 'revenue' && <RevenueTab entry={entry} items={data.revenue || []} summary={data.revenue_summary} reload={load} setHeaderAction={setHeaderAction} />}
-      {tab === 'expenses' && <ExpensesTab entry={entry} campaigns={data.campaigns || []} items={data.expenses || []} reload={load} setHeaderAction={setHeaderAction} />}
+      {tab === 'revenue' && <RevenueTab entry={entry} items={data.revenue || []} summary={data.revenue_summary} allocationUsers={data.allocation_users || []} allocations={data.allocations || []} reload={load} setHeaderAction={setHeaderAction} />}
+      {tab === 'expenses' && <ExpensesTab entry={entry} campaigns={data.campaigns || []} items={data.expenses || []} allocationUsers={data.allocation_users || []} allocations={data.allocations || []} reload={load} setHeaderAction={setHeaderAction} />}
     </div>
   );
 }
 
-function OverviewTab({ summary = {}, campaigns, revenue, expenses }) {
+function OverviewTab({ summary = {}, campaigns, revenue, expenses, allocations }) {
   const topCampaigns = useMemo(() => {
     return [...campaigns]
       .map((campaign) => ({
@@ -135,6 +135,10 @@ function OverviewTab({ summary = {}, campaigns, revenue, expenses }) {
             ))}
           </div>
         )}
+      </Panel>
+
+      <Panel title="Staff allocation breakdown">
+        <AllocationBreakdown allocations={allocations} />
       </Panel>
     </div>
   );
@@ -203,7 +207,7 @@ function CampaignsTab({ entry, items, reload, setHeaderAction }) {
   );
 }
 
-function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
+function RevenueTab({ entry, items, summary, allocationUsers, allocations, reload, setHeaderAction }) {
   const [form, setForm] = useState(null);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -230,6 +234,12 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
           <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
           <Input label="Date" type="date" value={dateValue(form.date)} onChange={(value) => update('date', value)} required />
           <Input label="Detail / Notes" value={form.description || ''} onChange={(value) => update('description', value)} />
+          <AllocationEditor
+            users={allocationUsers}
+            total={form.amount}
+            allocations={form.allocations || []}
+            onChange={(value) => update('allocations', value)}
+          />
           <FormActions isEdit={!!form.id} onCancel={() => setForm(null)} />
         </form>
       </div>
@@ -256,7 +266,7 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
         renderers={{ source: (item) => sourceLabel(item.source) }}
         actions={(item) => (
           <ActionGroup>
-            <EditButton label="Edit revenue" onClick={() => setForm({ ...item, date: dateValue(item.date) })} />
+            <EditButton label="Edit revenue" onClick={() => setForm({ ...item, date: dateValue(item.date), allocations: allocationsFor(allocations, 'revenue', item.id) })} />
             <DeleteButton url={`/admin-api/entries/${entry.id}/revenue/${item.id}`} reload={reload} />
           </ActionGroup>
         )}
@@ -265,7 +275,7 @@ function RevenueTab({ entry, items, summary, reload, setHeaderAction }) {
   );
 }
 
-function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
+function ExpensesTab({ entry, campaigns, items, allocationUsers, allocations, reload, setHeaderAction }) {
   const [form, setForm] = useState(null);
   const campaignOptions = [['', 'No campaign'], ...campaigns.map((campaign) => [String(campaign.id), campaign.name])];
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
@@ -295,6 +305,12 @@ function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
           <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
           <Input label="Date" type="date" value={dateValue(form.date)} onChange={(value) => update('date', value)} required />
           <Input label="Description" value={form.description || ''} onChange={(value) => update('description', value)} />
+          <AllocationEditor
+            users={allocationUsers}
+            total={form.amount}
+            allocations={form.allocations || []}
+            onChange={(value) => update('allocations', value)}
+          />
           <FormActions isEdit={!!form.id} onCancel={() => setForm(null)} />
         </form>
       </div>
@@ -314,12 +330,197 @@ function ExpensesTab({ entry, campaigns, items, reload, setHeaderAction }) {
         columns={['date', 'category', 'amount', 'currency', 'description']}
         actions={(item) => (
           <ActionGroup>
-            <EditButton label="Edit expense" onClick={() => setForm({ ...item, campaign_id: item.campaign_id || '', date: dateValue(item.date) })} />
+            <EditButton label="Edit expense" onClick={() => setForm({ ...item, campaign_id: item.campaign_id || '', date: dateValue(item.date), allocations: allocationsFor(allocations, 'expense', item.id) })} />
             <DeleteButton url={`/admin-api/entries/${entry.id}/expenses/${item.id}`} reload={reload} />
           </ActionGroup>
         )}
       />
     </>
+  );
+}
+
+function AllocationEditor({ users, total, allocations, onChange }) {
+  const totalAmount = Number(total || 0);
+
+  useEffect(() => {
+    const next = allocations.map((row) => {
+      if (row.mode !== 'percentage' || row.percentage === '' || row.percentage == null) return row;
+      const amount = (totalAmount * Number(row.percentage) / 100).toFixed(2);
+      return String(row.amount ?? '') === amount ? row : { ...row, amount };
+    });
+
+    if (next.some((row, index) => row !== allocations[index])) {
+      onChange(next);
+    }
+  }, [totalAmount]);
+
+  function addUser() {
+    const selected = new Set(allocations.map((item) => Number(item.user_id)));
+    const nextUser = users.find((user) => !selected.has(Number(user.id)));
+    if (!nextUser) return;
+
+    onChange([
+      ...allocations,
+      { user_id: nextUser.id, mode: 'percentage', percentage: '', amount: '', notes: '' },
+    ]);
+  }
+
+  function updateRow(index, key, value) {
+    onChange(allocations.map((row, rowIndex) => {
+      if (rowIndex !== index) return row;
+
+      if (key === 'percentage' && row.mode === 'percentage') {
+        const percentage = value === '' ? '' : Number(value);
+        return { ...row, percentage: value, amount: value === '' ? '' : (totalAmount * percentage / 100).toFixed(2) };
+      }
+
+      if (key === 'amount') {
+        return { ...row, mode: 'fixed', percentage: '', amount: value };
+      }
+
+      if (key === 'mode') {
+        const percentage = row.percentage === '' ? '' : Number(row.percentage);
+        return {
+          ...row,
+          mode: value,
+          amount: value === 'percentage' && percentage !== '' ? (totalAmount * percentage / 100).toFixed(2) : (value === 'fixed' ? row.amount : ''),
+        };
+      }
+
+      return { ...row, [key]: value };
+    }));
+  }
+
+  function removeRow(index) {
+    onChange(allocations.filter((_, rowIndex) => rowIndex !== index));
+  }
+
+  return (
+    <div className="md:col-span-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100">Allocate to staff users</h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Percentage calculates automatically from the total. Editing the amount converts that row to a fixed amount.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={addUser}
+          disabled={users.length === allocations.length}
+          className="rounded-lg bg-violet-100 px-3 py-2 text-sm font-medium text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          + Add user
+        </button>
+      </div>
+
+      {users.length === 0 && (
+        <p className="mt-3 text-sm text-gray-500">No staff users are assigned to this entry yet.</p>
+      )}
+
+      <div className="mt-4 space-y-3">
+        {allocations.map((row, index) => (
+          <div key={`${row.user_id}-${index}`} className="grid grid-cols-1 gap-3 rounded-lg bg-white p-3 shadow-sm dark:bg-gray-800 md:grid-cols-12 md:items-end">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 md:col-span-3">
+              User
+              <select
+                value={row.user_id}
+                onChange={(event) => updateRow(index, 'user_id', Number(event.target.value))}
+                className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+              >
+                {users.map((user) => <option key={user.id} value={user.id}>{user.name} ({user.email})</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 md:col-span-2">
+              Type
+              <select
+                value={row.mode || 'percentage'}
+                onChange={(event) => updateRow(index, 'mode', event.target.value)}
+                className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+              >
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed amount</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 md:col-span-2">
+              Percentage
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                disabled={row.mode === 'fixed'}
+                value={row.percentage ?? ''}
+                onChange={(event) => updateRow(index, 'percentage', event.target.value)}
+                className="mt-1 block w-full rounded-lg border-gray-300 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-900"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 md:col-span-2">
+              Amount
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={row.amount ?? ''}
+                onChange={(event) => updateRow(index, 'amount', event.target.value)}
+                className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+              />
+            </label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 md:col-span-2">
+              Note
+              <input
+                type="text"
+                value={row.notes || ''}
+                onChange={(event) => updateRow(index, 'notes', event.target.value)}
+                placeholder="Optional"
+                className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+              />
+            </label>
+            <button type="button" onClick={() => removeRow(index)} className="rounded-lg px-2 py-2 text-sm font-medium text-red-600 hover:bg-red-50 md:col-span-1">
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function allocationsFor(allocations, type, sourceId) {
+  return allocations
+    .filter((item) => item.allocation_type === type && Number(item.source_id) === Number(sourceId))
+    .map((item) => ({
+      user_id: item.user_id,
+      mode: item.mode || 'percentage',
+      percentage: item.percentage ?? '',
+      amount: item.amount ?? '',
+      notes: item.notes || '',
+    }));
+}
+
+function AllocationBreakdown({ allocations = [] }) {
+  const rows = useMemo(() => {
+    const grouped = new Map();
+    allocations.forEach((item) => {
+      const key = `${item.allocation_type}:${item.user_id}`;
+      const current = grouped.get(key) || { type: item.allocation_type, user: item.user?.name || 'User', amount: 0 };
+      current.amount += Number(item.amount || 0);
+      grouped.set(key, current);
+    });
+    return [...grouped.values()];
+  }, [allocations]);
+
+  if (rows.length === 0) return <p className="text-sm text-gray-500 dark:text-gray-400">No allocations saved yet.</p>;
+
+  return (
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+      {rows.map((row) => (
+        <div key={`${row.type}-${row.user}`} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900">
+          <span className="text-sm text-gray-600 dark:text-gray-300">{row.user} · {row.type}</span>
+          <span className="font-semibold text-gray-800 dark:text-gray-100">{money(row.amount)}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -406,6 +607,7 @@ function blankRevenue() {
     currency: 'PKR',
     description: '',
     date: new Date().toISOString().slice(0, 10),
+    allocations: [],
   };
 }
 
@@ -417,6 +619,7 @@ function blankExpense() {
     currency: 'PKR',
     description: '',
     date: new Date().toISOString().slice(0, 10),
+    allocations: [],
   };
 }
 

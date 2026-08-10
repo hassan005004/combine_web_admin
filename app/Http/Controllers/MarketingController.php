@@ -6,11 +6,13 @@ use App\Models\Affiliate;
 use App\Models\AffiliateConversion;
 use App\Models\Campaign;
 use App\Models\Domain;
+use App\Models\FinanceAllocation;
 use App\Models\LandingPage;
 use App\Models\MarketingExpense;
 use App\Models\ReferralProgram;
 use App\Models\ReferralUse;
 use App\Models\RevenueEntry;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -25,6 +27,12 @@ class MarketingController extends Controller
         $revenue = RevenueEntry::where('domain_id', $domain->id)->orderBy('date')->get();
         $campaigns = Campaign::where('domain_id', $domain->id)->latest()->get();
         $expenses = MarketingExpense::with('campaign:id,name')->where('domain_id', $domain->id)->orderByDesc('date')->get();
+        $allocations = FinanceAllocation::with('user:id,name,email')
+            ->where('domain_id', $domain->id)
+            ->get();
+        $allocationUsers = User::whereHas('staffEntities', fn ($query) => $query->where('domain_id', $domain->id))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
         $manualRevenue = (float) $revenue->sum('amount');
         $campaignRevenue = (float) $campaigns->sum('earned_amount');
         $campaignSpend = (float) $campaigns->sum('spent_amount');
@@ -39,6 +47,8 @@ class MarketingController extends Controller
             'landing_pages'    => LandingPage::where('domain_id', $domain->id)->latest()->get(),
             'revenue'          => $revenue,
             'expenses'         => $expenses,
+            'allocation_users' => $allocationUsers,
+            'allocations'      => $allocations,
             'finance_summary'  => [
                 'manual_revenue' => $manualRevenue,
                 'campaign_revenue' => $campaignRevenue,
@@ -293,12 +303,24 @@ class MarketingController extends Controller
             'currency'    => ['nullable', 'string', 'max:3'],
             'description' => ['nullable', 'string', 'max:500'],
             'date'        => ['required', 'date'],
+            'allocations' => ['nullable', 'array'],
+            'allocations.*.user_id' => ['required', 'integer'],
+            'allocations.*.mode' => ['required', 'in:percentage,fixed'],
+            'allocations.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'allocations.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'allocations.*.notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $allocations = $data['allocations'] ?? [];
+        unset($data['allocations']);
 
         $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
         $data['domain_id'] = $domain->id;
 
-        return response()->json(['entry' => RevenueEntry::create($data)], 201);
+        $entry = RevenueEntry::create($data);
+        $this->syncFinanceAllocations($domain, 'revenue', $entry->id, $entry->amount, $allocations);
+
+        return response()->json(['entry' => $entry->fresh()], 201);
     }
 
     public function updateRevenue(Request $request, Domain $domain, RevenueEntry $revenueEntry)
@@ -309,16 +331,30 @@ class MarketingController extends Controller
             'currency'    => ['nullable', 'string', 'max:3'],
             'description' => ['nullable', 'string', 'max:500'],
             'date'        => ['required', 'date'],
+            'allocations' => ['nullable', 'array'],
+            'allocations.*.user_id' => ['required', 'integer'],
+            'allocations.*.mode' => ['required', 'in:percentage,fixed'],
+            'allocations.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'allocations.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'allocations.*.notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $allocations = $data['allocations'] ?? [];
+        unset($data['allocations']);
 
         $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
         $revenueEntry->update($data);
+        $this->syncFinanceAllocations($domain, 'revenue', $revenueEntry->id, $revenueEntry->amount, $allocations);
 
         return response()->json(['entry' => $revenueEntry->fresh()]);
     }
 
     public function destroyRevenue(Domain $domain, RevenueEntry $revenueEntry)
     {
+        FinanceAllocation::where('domain_id', $domain->id)
+            ->where('allocation_type', 'revenue')
+            ->where('source_id', $revenueEntry->id)
+            ->delete();
         $revenueEntry->delete();
 
         return response()->json(['success' => true]);
@@ -327,20 +363,33 @@ class MarketingController extends Controller
     public function storeExpense(Request $request, Domain $domain)
     {
         $data = $this->validateExpense($request);
+        $allocations = $data['allocations'] ?? [];
+        unset($data['allocations']);
         $data['domain_id'] = $domain->id;
 
-        return response()->json(['expense' => MarketingExpense::create($data)], 201);
+        $expense = MarketingExpense::create($data);
+        $this->syncFinanceAllocations($domain, 'expense', $expense->id, $expense->amount, $allocations);
+
+        return response()->json(['expense' => $expense->fresh('campaign:id,name')], 201);
     }
 
     public function updateExpense(Request $request, Domain $domain, MarketingExpense $expense)
     {
-        $expense->update($this->validateExpense($request));
+        $data = $this->validateExpense($request);
+        $allocations = $data['allocations'] ?? [];
+        unset($data['allocations']);
+        $expense->update($data);
+        $this->syncFinanceAllocations($domain, 'expense', $expense->id, $expense->amount, $allocations);
 
         return response()->json(['expense' => $expense->fresh('campaign:id,name')]);
     }
 
     public function destroyExpense(Domain $domain, MarketingExpense $expense)
     {
+        FinanceAllocation::where('domain_id', $domain->id)
+            ->where('allocation_type', 'expense')
+            ->where('source_id', $expense->id)
+            ->delete();
         $expense->delete();
 
         return response()->json(['success' => true]);
@@ -355,10 +404,53 @@ class MarketingController extends Controller
             'currency' => ['nullable', 'string', 'max:3'],
             'description' => ['nullable', 'string', 'max:500'],
             'date' => ['required', 'date'],
+            'allocations' => ['nullable', 'array'],
+            'allocations.*.user_id' => ['required', 'integer'],
+            'allocations.*.mode' => ['required', 'in:percentage,fixed'],
+            'allocations.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'allocations.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'allocations.*.notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $data['currency'] = strtoupper($data['currency'] ?: 'PKR');
 
         return $data;
+    }
+
+    private function syncFinanceAllocations(Domain $domain, string $type, int $sourceId, $total, array $allocations): void
+    {
+        $staffUserIds = User::whereHas('staffEntities', fn ($query) => $query->where('domain_id', $domain->id))
+            ->pluck('id')
+            ->all();
+
+        foreach ($allocations as $allocation) {
+            if (! in_array((int) ($allocation['user_id'] ?? 0), $staffUserIds, true)) {
+                abort(422, 'The selected user is not assigned to this entry.');
+            }
+        }
+
+        FinanceAllocation::where('domain_id', $domain->id)
+            ->where('allocation_type', $type)
+            ->where('source_id', $sourceId)
+            ->delete();
+
+        foreach ($allocations as $allocation) {
+            $mode = ($allocation['mode'] ?? 'percentage') === 'fixed' ? 'fixed' : 'percentage';
+            $percentage = $mode === 'percentage' ? (float) ($allocation['percentage'] ?? 0) : null;
+            $amount = $mode === 'percentage'
+                ? round((float) $total * $percentage / 100, 2)
+                : (float) ($allocation['amount'] ?? 0);
+
+            FinanceAllocation::create([
+                'domain_id' => $domain->id,
+                'user_id' => $allocation['user_id'],
+                'allocation_type' => $type,
+                'source_id' => $sourceId,
+                'mode' => $mode,
+                'percentage' => $percentage,
+                'amount' => $amount,
+                'notes' => $allocation['notes'] ?? null,
+            ]);
+        }
     }
 }
