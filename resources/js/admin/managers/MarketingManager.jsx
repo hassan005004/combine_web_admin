@@ -46,6 +46,8 @@ const EXPENSE_CATEGORY_OPTS = [
   ['other', 'Other'],
 ];
 
+const CUSTOM_OPTION_VALUE = '__custom__';
+
 export function MarketingManager({ entry, setHeaderAction }) {
   const [tab, setTab] = useState('overview');
   const [data, setData] = useState(null);
@@ -209,6 +211,10 @@ function CampaignsTab({ entry, items, reload, setHeaderAction }) {
 
 function RevenueTab({ entry, items, summary, allocationUsers, allocations, reload, setHeaderAction }) {
   const [form, setForm] = useState(null);
+  const sourceOptions = useMemo(
+    () => withSavedOptions(REVENUE_SOURCE_OPTS, items.map((item) => item.source)),
+    [items],
+  );
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
@@ -229,7 +235,15 @@ function RevenueTab({ entry, items, summary, allocationUsers, allocations, reloa
       <div className="p-5 max-w-2xl">
         <h2 className="mb-5 font-semibold text-gray-800 dark:text-gray-100">{form.id ? 'Edit Revenue' : 'Add Manual Revenue'}</h2>
         <form onSubmit={submit} className="space-y-4">
-          <Select label="Source" value={form.source} onChange={(value) => update('source', value)} options={REVENUE_SOURCE_OPTS} />
+          <CreatableOptionField
+            label="Source"
+            value={form.source}
+            onChange={(value) => update('source', value)}
+            options={sourceOptions}
+            customLabel="+ Create revenue source"
+            placeholder="e.g. JazzCash withdrawal"
+            required
+          />
           <Input label="Withdraw / Received Amount" type="number" value={form.amount} onChange={(value) => update('amount', value)} required />
           <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
           <Input label="Date" type="date" value={dateValue(form.date)} onChange={(value) => update('date', value)} required />
@@ -257,13 +271,16 @@ function RevenueTab({ entry, items, summary, allocationUsers, allocations, reloa
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-gray-100 p-5 dark:border-gray-700">
         <SummaryCard label="Manual Revenue" value={money(summary?.total)} tone="good" />
         {Object.entries(summary?.by_source || {}).map(([source, amount]) => (
-          <SummaryCard key={source} label={source} value={money(amount)} />
+          <SummaryCard key={source} label={optionLabel(source, sourceOptions)} value={money(amount)} />
         ))}
       </div>
       <DataRows
         items={items}
         columns={['date', 'source', 'amount', 'currency', 'description']}
-        renderers={{ source: (item) => sourceLabel(item.source) }}
+        renderers={{
+          date: (item) => formatDateTime(item.date),
+          source: (item) => optionLabel(item.source, sourceOptions),
+        }}
         actions={(item) => (
           <ActionGroup>
             <EditButton label="Edit revenue" onClick={() => setForm({ ...item, date: dateValue(item.date), allocations: allocationsFor(allocations, 'revenue', item.id) })} />
@@ -278,6 +295,10 @@ function RevenueTab({ entry, items, summary, allocationUsers, allocations, reloa
 function ExpensesTab({ entry, campaigns, items, allocationUsers, allocations, reload, setHeaderAction }) {
   const [form, setForm] = useState(null);
   const campaignOptions = [['', 'No campaign'], ...campaigns.map((campaign) => [String(campaign.id), campaign.name])];
+  const categoryOptions = useMemo(
+    () => withSavedOptions(EXPENSE_CATEGORY_OPTS, items.map((item) => item.category)),
+    [items],
+  );
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
@@ -299,7 +320,15 @@ function ExpensesTab({ entry, campaigns, items, allocationUsers, allocations, re
       <div className="p-5 max-w-2xl">
         <h2 className="mb-5 font-semibold text-gray-800 dark:text-gray-100">{form.id ? 'Edit Expense' : 'Add Expense'}</h2>
         <form onSubmit={submit} className="space-y-4">
-          <Select label="Category" value={form.category} onChange={(value) => update('category', value)} options={EXPENSE_CATEGORY_OPTS} />
+          <CreatableOptionField
+            label="Category"
+            value={form.category}
+            onChange={(value) => update('category', value)}
+            options={categoryOptions}
+            customLabel="+ Create expense category"
+            placeholder="e.g. delivery fuel"
+            required
+          />
           <Select label="Linked Campaign" value={String(form.campaign_id || '')} onChange={(value) => update('campaign_id', value)} options={campaignOptions} />
           <Input label="Amount Spent" type="number" value={form.amount} onChange={(value) => update('amount', value)} required />
           <Input label="Currency" value={form.currency || 'PKR'} onChange={(value) => update('currency', value)} />
@@ -328,6 +357,10 @@ function ExpensesTab({ entry, campaigns, items, allocationUsers, allocations, re
       <DataRows
         items={items}
         columns={['date', 'category', 'amount', 'currency', 'description']}
+        renderers={{
+          date: (item) => formatDateTime(item.date),
+          category: (item) => optionLabel(item.category, categoryOptions),
+        }}
         actions={(item) => (
           <ActionGroup>
             <EditButton label="Edit expense" onClick={() => setForm({ ...item, campaign_id: item.campaign_id || '', date: dateValue(item.date), allocations: allocationsFor(allocations, 'expense', item.id) })} />
@@ -486,6 +519,32 @@ function AllocationEditor({ users, total, allocations, onChange }) {
   );
 }
 
+function CreatableOptionField({ label, value, onChange, options, customLabel, placeholder, required = false }) {
+  const hasSavedOption = options.some(([key]) => key === value);
+  const isCustom = !hasSavedOption;
+  const selectValue = isCustom ? CUSTOM_OPTION_VALUE : value;
+
+  return (
+    <div className="space-y-3">
+      <Select
+        label={label}
+        value={selectValue}
+        onChange={(nextValue) => onChange(nextValue === CUSTOM_OPTION_VALUE ? '' : nextValue)}
+        options={[...options, [CUSTOM_OPTION_VALUE, customLabel]]}
+      />
+      {isCustom && (
+        <Input
+          label={`New ${label}`}
+          value={value || ''}
+          onChange={onChange}
+          placeholder={placeholder}
+          required={required}
+        />
+      )}
+    </div>
+  );
+}
+
 function allocationsFor(allocations, type, sourceId) {
   return allocations
     .filter((item) => item.allocation_type === type && Number(item.source_id) === Number(sourceId))
@@ -627,8 +686,39 @@ function money(value) {
   return `Rs. ${Number(value || 0).toFixed(2)}`;
 }
 
-function sourceLabel(value) {
-  return REVENUE_SOURCE_OPTS.find(([key]) => key === value)?.[1] || value;
+function withSavedOptions(baseOptions, savedValues) {
+  const seen = new Set(baseOptions.map(([key]) => key));
+  const customOptions = [...new Set(savedValues.filter(Boolean).map(String))]
+    .filter((value) => value !== CUSTOM_OPTION_VALUE && !seen.has(value))
+    .sort((a, b) => a.localeCompare(b))
+    .map((value) => [value, labelFromValue(value)]);
+
+  return [...baseOptions, ...customOptions];
+}
+
+function optionLabel(value, options) {
+  return options.find(([key]) => key === value)?.[1] || labelFromValue(value);
+}
+
+function labelFromValue(value) {
+  return String(value || '-')
+    .replaceAll('_', ' ')
+    .replaceAll('-', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+  if (!match) return String(value);
+
+  const [, year, month, day, hour = '00', minute = '00'] = match;
+  const hourNumber = Number(hour);
+  const period = hourNumber >= 12 ? 'pm' : 'am';
+  const hour12 = hourNumber % 12 || 12;
+
+  return `${day}-${month}-${year} ${String(hour12).padStart(2, '0')}:${minute} ${period}`;
 }
 
 function dateValue(value) {
