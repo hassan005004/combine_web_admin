@@ -237,6 +237,7 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
 
 function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPrice, yearlyFreeMonths }) {
   const [query, setQuery] = useState('');
+  const [tierDrafts, setTierDrafts] = useState({});
   const safeDefaultCurrency = normalizeCurrency(defaultCurrency);
   const defaultPriceText = String(defaultMonthlyPrice ?? '').trim() || '0.00';
   const overridesByCode = countryRowsByCode(rows);
@@ -281,8 +282,54 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
     setRows(rows.filter((row) => normalizeCountryCode(row.country_code) !== normalizedCountryCode));
   };
 
+  const updateTierDraft = (tierId, key, value) => {
+    setTierDrafts((current) => ({
+      ...current,
+      [tierId]: {
+        ...(current[tierId] || {}),
+        [key]: key === 'currency' ? normalizeCurrency(value, safeDefaultCurrency) : value,
+      },
+    }));
+  };
+
+  const tierDraft = (tierId) => ({
+    monthly_price: tierDrafts[tierId]?.monthly_price ?? '',
+    currency: tierDrafts[tierId]?.currency || safeDefaultCurrency,
+  });
+
+  const applyTier = (tier) => {
+    const draft = tierDraft(tier.id);
+    const monthlyText = String(draft.monthly_price ?? '').trim();
+    const monthlyPrice = Number.parseFloat(monthlyText);
+
+    if (monthlyText === '' || !Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+      return;
+    }
+
+    const tierCodes = new Set(tier.allCountries.map((country) => country.code));
+    const otherRows = rows.filter((row) => !tierCodes.has(normalizeCountryCode(row.country_code)));
+    const tierRows = tier.allCountries.map((country) => ({
+      country_code: country.code,
+      monthly_price: monthlyPrice.toFixed(2),
+      yearly_price: calculateYearlyPrice(monthlyPrice, yearlyFreeMonths),
+      currency: normalizeCurrency(draft.currency, safeDefaultCurrency),
+    }));
+
+    setRows([...otherRows, ...tierRows]);
+  };
+
+  const clearTier = (tier) => {
+    const tierCodes = new Set(tier.allCountries.map((country) => country.code));
+    setRows(rows.filter((row) => !tierCodes.has(normalizeCountryCode(row.country_code))));
+  };
+
   const tierRows = COUNTRY_PRICING_TIERS.map((tier) => ({
     ...tier,
+    allCountries: tier.countries,
+    overrideCount: tier.countries.filter((country) => {
+      const monthlyText = String(overridesByCode[country.code]?.monthly_price ?? '').trim();
+      return monthlyText !== '';
+    }).length,
     countries: tier.countries.filter((country) => {
       if (!normalizedQuery) return true;
       return country.code.toLowerCase().includes(normalizedQuery)
@@ -324,16 +371,25 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
       <div className="max-h-[680px] space-y-4 overflow-y-auto pr-1">
         {tierRows.map((tier) => (
           <div key={tier.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]">
               <div>
                 <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                   {tier.label}: {tier.title}
                 </h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{tier.description}</p>
+                <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  {tier.overrideCount}/{tier.allCountries.length} countries overridden
+                  {normalizedQuery ? `, ${tier.countries.length} shown` : ''}
+                </p>
               </div>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                {tier.countries.length} countries
-              </span>
+              <TierPriceControls
+                tier={tier}
+                draft={tierDraft(tier.id)}
+                defaultCurrency={safeDefaultCurrency}
+                onDraftChange={updateTierDraft}
+                onApply={applyTier}
+                onClear={clearTier}
+              />
             </div>
 
             <div className="space-y-2">
@@ -386,6 +442,50 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TierPriceControls({ tier, draft, defaultCurrency, onDraftChange, onApply, onClear }) {
+  const monthlyText = String(draft.monthly_price ?? '').trim();
+  const monthlyPrice = Number.parseFloat(monthlyText);
+  const canApply = monthlyText !== '' && Number.isFinite(monthlyPrice) && monthlyPrice >= 0;
+
+  return (
+    <div className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70 sm:grid-cols-[minmax(0,1fr)_110px_110px_92px]">
+      <Input
+        label={`${tier.label} Monthly Rate`}
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        value={draft.monthly_price}
+        onChange={(value) => onDraftChange(tier.id, 'monthly_price', value)}
+        placeholder="0.25"
+        hint="apply all"
+      />
+      <Input
+        label="Currency"
+        value={draft.currency || defaultCurrency}
+        onChange={(value) => onDraftChange(tier.id, 'currency', value)}
+        placeholder={defaultCurrency}
+      />
+      <button
+        type="button"
+        disabled={!canApply}
+        onClick={() => onApply(tier)}
+        className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-violet-600 px-3 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700"
+      >
+        Apply Tier
+      </button>
+      <button
+        type="button"
+        disabled={tier.overrideCount === 0}
+        onClick={() => onClear(tier)}
+        className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+      >
+        Clear
+      </button>
     </div>
   );
 }
