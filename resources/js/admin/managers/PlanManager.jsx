@@ -4,15 +4,41 @@ import { Input, Toggle } from '../components/FormControls';
 import { ActionGroup, DataRows, DeleteButton, EditButton } from '../components/DataRows';
 import { FeatureIcon, featureIconOptions } from '../components/FeatureIcon';
 
+function calculateYearlyPrice(monthlyPrice, yearlyFreeMonths = 0) {
+  const monthly = Number.parseFloat(monthlyPrice) || 0;
+  const freeMonths = Math.min(12, Math.max(0, Number(yearlyFreeMonths) || 0));
+  return (monthly * Math.max(0, 12 - freeMonths)).toFixed(2);
+}
+
+function parseCountryPrices(value) {
+  if (!value || !String(value).trim()) return {};
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error('Country prices must be valid JSON.');
+  }
+}
+
 export function PlanManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const blankForm = {
     domain_id: entry.id,
     name: '',
     monthly_price: '0.00',
     yearly_price: '0.00',
-    free_trial_days: 0,
+    currency: 'USD',
+    free_trial_days: 7,
+    yearly_free_months: 0,
     tagline: '',
     yearly_benefit: '',
+    google_play_monthly_product_id: '',
+    google_play_monthly_base_plan_id: '',
+    google_play_monthly_offer_id: '',
+    google_play_yearly_product_id: '',
+    google_play_yearly_base_plan_id: '',
+    google_play_yearly_offer_id: '',
+    country_prices: {},
+    country_prices_text: '{}',
     sorting: 0,
     is_active: true,
     features: [],
@@ -51,7 +77,13 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
   }
 
   function editPlan(plan, push = true) {
-    setForm({ ...blankForm, ...plan, domain_id: entry.id });
+    setForm({
+      ...blankForm,
+      ...plan,
+      domain_id: entry.id,
+      country_prices: plan.country_prices || {},
+      country_prices_text: JSON.stringify(plan.country_prices || {}, null, 2),
+    });
     setEditingId(plan.id);
     setScreen('form');
     if (push) navigateModule?.('edit', plan.id);
@@ -59,8 +91,17 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
 
   async function submit(event) {
     event.preventDefault();
+    const payload = { ...form };
+    delete payload.country_prices_text;
+    try {
+      payload.country_prices = parseCountryPrices(form.country_prices_text);
+    } catch (error) {
+      window.alert(error.message);
+      return;
+    }
+    payload.yearly_price = calculateYearlyPrice(payload.monthly_price, payload.yearly_free_months);
     const url = editingId ? `/admin-api/membership-plans/${editingId}` : '/admin-api/membership-plans';
-    await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(form) });
+    await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     await reload();
     navigateModule?.();
   }
@@ -81,7 +122,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     <>
       <DataRows
         items={items}
-        columns={['name', 'monthly_price', 'yearly_price', 'free_trial_days', 'tagline', 'yearly_benefit']}
+        columns={['name', 'monthly_price', 'yearly_price', 'currency', 'free_trial_days', 'yearly_free_months', 'google_play_monthly_product_id', 'google_play_yearly_product_id']}
         actions={(item) => (
           <ActionGroup>
             <EditButton label={`Edit ${item.name}`} onClick={() => editPlan(item)} />
@@ -95,6 +136,14 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
 
 function PlanForm({ form, setForm, editingId, submit, cancel }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const updateBillingPrice = (key, value) => setForm((current) => {
+    const next = { ...current, [key]: value };
+    next.yearly_price = calculateYearlyPrice(next.monthly_price, next.yearly_free_months);
+    if (Number(next.yearly_free_months || 0) > 0 && !next.yearly_benefit) {
+      next.yearly_benefit = `${next.yearly_free_months} months free`;
+    }
+    return next;
+  });
 
   return (
     <div className="p-5">
@@ -103,13 +152,31 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Name" value={form.name} onChange={(value) => update('name', value)} required />
-        <Input label="Monthly Price ($)" value={form.monthly_price} onChange={(value) => update('monthly_price', value)} required />
-        <Input label="Yearly Price ($)" value={form.yearly_price} onChange={(value) => update('yearly_price', value)} required />
+        <Input label="Monthly Price" value={form.monthly_price} onChange={(value) => updateBillingPrice('monthly_price', value)} required />
+        <Input label="Yearly Price" value={form.yearly_price} onChange={() => {}} disabled hint="auto calculated" />
+        <Input label="Currency" value={form.currency || 'USD'} onChange={(value) => update('currency', value.toUpperCase().slice(0, 3))} />
         <Input label="Free Trial Days" type="number" value={form.free_trial_days ?? 0} onChange={(value) => update('free_trial_days', Number(value))} />
+        <Input label="Yearly Free Months" type="number" value={form.yearly_free_months ?? 0} onChange={(value) => updateBillingPrice('yearly_free_months', Math.min(12, Math.max(0, Number(value) || 0)))} />
         <Input label="Tagline" value={form.tagline || ''} onChange={(value) => update('tagline', value)} />
         <Input label="Yearly Benefit" value={form.yearly_benefit || ''} onChange={(value) => update('yearly_benefit', value)} />
+        <Input label="Monthly Product ID" value={form.google_play_monthly_product_id || ''} onChange={(value) => update('google_play_monthly_product_id', value)} placeholder="remove_ads_monthly" />
+        <Input label="Monthly Base Plan ID" value={form.google_play_monthly_base_plan_id || ''} onChange={(value) => update('google_play_monthly_base_plan_id', value)} placeholder="monthly" />
+        <Input label="Monthly Offer ID" value={form.google_play_monthly_offer_id || ''} onChange={(value) => update('google_play_monthly_offer_id', value)} />
+        <Input label="Yearly Product ID" value={form.google_play_yearly_product_id || ''} onChange={(value) => update('google_play_yearly_product_id', value)} placeholder="remove_ads_yearly" />
+        <Input label="Yearly Base Plan ID" value={form.google_play_yearly_base_plan_id || ''} onChange={(value) => update('google_play_yearly_base_plan_id', value)} placeholder="yearly" />
+        <Input label="Yearly Offer ID" value={form.google_play_yearly_offer_id || ''} onChange={(value) => update('google_play_yearly_offer_id', value)} />
         <Input label="Sorting" type="number" value={form.sorting ?? 0} onChange={(value) => update('sorting', Number(value))} />
         <Toggle label="Status" checked={!!form.is_active} onChange={(value) => update('is_active', value)} />
+        <label className="md:col-span-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Country Prices JSON
+          <textarea
+            value={form.country_prices_text || '{}'}
+            onChange={(event) => update('country_prices_text', event.target.value)}
+            rows={8}
+            placeholder='{"PK":{"monthly_price":250,"currency":"PKR"},"US":{"monthly_price":2.99,"currency":"USD"}}'
+            className="mt-1 block w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 shadow-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          />
+        </label>
         <PlanFeatures features={form.features || []} setFeatures={(features) => update('features', features)} />
         <div className="md:col-span-3 flex gap-2">
           <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update Plan' : 'Create Plan'}</button>

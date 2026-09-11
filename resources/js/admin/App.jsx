@@ -388,6 +388,20 @@ function AdminApp() {
       payload.append(`ads[${type}][frequency]`, String(adSetting.frequency ?? 0));
     });
 
+    const adsense = ads.adsense || {};
+    payload.append('ads[adsense][enabled]', adsense.enabled ? '1' : '0');
+    payload.append('ads[adsense][client_id]', adsense.client_id || '');
+    payload.append('ads[adsense][slot_id]', adsense.slot_id || '');
+    payload.append('ads[adsense][format]', adsense.format || 'auto');
+
+    const billing = form.billing || {};
+    const googlePlay = billing.google_play || {};
+    payload.append('billing[enabled]', billing.enabled ? '1' : '0');
+    payload.append('billing[grace_days]', String(billing.grace_days ?? 3));
+    payload.append('billing[google_play][enabled]', googlePlay.enabled ? '1' : '0');
+    payload.append('billing[google_play][package_name]', googlePlay.package_name || form.application_id || '');
+    payload.append('billing[google_play][service_account_json]', googlePlay.service_account_json || '');
+
     return payload;
   }
 
@@ -401,7 +415,22 @@ function AdminApp() {
       native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
       adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
     };
-    setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads });
+    const serverBilling = entry.billing_settings || {};
+    const serviceAccountJson = serverBilling.google_play?.service_account_json;
+    const billing = {
+      ...blankEntry.billing,
+      ...serverBilling,
+      google_play: {
+        ...blankEntry.billing.google_play,
+        ...(serverBilling.google_play || {}),
+        service_account_json: typeof serviceAccountJson === 'string'
+          ? serviceAccountJson
+          : serviceAccountJson
+            ? JSON.stringify(serviceAccountJson, null, 2)
+            : '',
+      },
+    };
+    setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads, billing });
     // Keep selectedEntryId so the entry sidebar stays visible
     applyRoute(
       { page: 'entry-form', selectedEntryId: entry.id, detailTab: detailTab, editingEntryId: entry.id },

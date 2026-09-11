@@ -24,7 +24,9 @@ class DashboardController extends Controller
             'active_30_days' => UserDevice::where('last_seen_at', '>=', now()->subDays(30))->count(),
             'memberships' => AppMembership::where('is_active', true)
                 ->where(function ($query) {
-                    $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                    $query->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now())
+                        ->orWhere('grace_expires_at', '>', now());
                 })
                 ->count(),
             'membership_plans' => MembershipPlan::where('is_active', true)->count(),

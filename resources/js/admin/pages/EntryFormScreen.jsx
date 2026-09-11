@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Input, Select, Toggle } from '../components/FormControls';
+import { Input, Select, Textarea, Toggle } from '../components/FormControls';
 
 const TYPE_OPTIONS = [
   ['app',     'App (Android / iOS)'],
@@ -64,7 +64,7 @@ const RESOURCE_OPTIONS = [
   ['notifications', 'Notifications'], ['faqs', 'FAQs'], ['feedback', 'Feedback'],
   ['features', 'Feature Requests'], ['marketing', 'Marketing & Revenue'],
   ['pages', 'Pages'], ['notes', 'Notes'], ['files', 'Files'], ['fcm', 'FCM Settings'],
-  ['smtp', 'SMTP Settings'], ['admob', 'AdMob'], ['app-version', 'App Version'],
+  ['smtp', 'SMTP Settings'], ['admob', 'AdMob'], ['billing', 'Billing'], ['app-version', 'App Version'],
 ];
 
 export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntry, busy }) {
@@ -81,6 +81,19 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
 
   const updateAdsense = (field, value) => updateAd('adsense', field, value);
   const updateSocial = (key, value) => setForm((current) => ({ ...current, social_links: { ...(current.social_links || {}), [key]: value } }));
+  const updateBilling = (field, value) =>
+    setForm((current) => ({
+      ...current,
+      billing: { ...(current.billing || {}), [field]: value },
+    }));
+  const updateGoogleBilling = (field, value) =>
+    setForm((current) => ({
+      ...current,
+      billing: {
+        ...(current.billing || {}),
+        google_play: { ...(current.billing?.google_play || {}), [field]: value },
+      },
+    }));
 
   const [logoPreview, setLogoPreview] = useState(form.logo_url || null);
 
@@ -218,6 +231,56 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
             })}
           </div>
         </section>
+
+        {hasResource('billing') && showsApp(form.entry_type) && (
+          <section className="bg-white dark:bg-gray-800 shadow rounded-lg p-5">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Google Play Billing</h2>
+                <p className="mt-1 text-xs text-gray-400">Used for subscription verification and ads-removal membership.</p>
+              </div>
+              <Toggle
+                label=""
+                checked={Boolean(form.billing?.enabled)}
+                onChange={(value) => updateBilling('enabled', value)}
+                onText="On"
+                offText="Off"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Toggle
+                label="Google Play"
+                checked={Boolean(form.billing?.google_play?.enabled)}
+                onChange={(value) => updateGoogleBilling('enabled', value)}
+                onText="Enabled"
+                offText="Disabled"
+              />
+              <Input
+                label="Package Name"
+                value={form.billing?.google_play?.package_name || form.application_id || ''}
+                onChange={(value) => updateGoogleBilling('package_name', value)}
+                placeholder="com.digital_tasbeeh.app"
+              />
+              <Input
+                label="Grace Days"
+                type="number"
+                value={form.billing?.grace_days ?? 3}
+                onChange={(value) => updateBilling('grace_days', Math.max(0, parseInt(value, 10) || 0))}
+              />
+              <div className="md:col-span-3">
+                <Textarea
+                  label="Service Account JSON"
+                  rows={8}
+                  value={form.billing?.google_play?.service_account_json || ''}
+                  onChange={(value) => updateGoogleBilling('service_account_json', value)}
+                  placeholder='{"type":"service_account","client_email":"...","private_key":"..."}'
+                  hint="leave empty to keep saved credentials"
+                />
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── AdMob Settings ───────────────────────────────────────────── */}
         {hasResource('admob') && (showsApp(form.entry_type) || showsWebsite(form.entry_type)) && (

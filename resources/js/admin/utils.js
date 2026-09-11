@@ -1,7 +1,7 @@
 export const blankEntry = {
   title: '',
   entry_type: 'both',
-  resources: ['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'app-version'],
+  resources: ['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'billing', 'app-version'],
   status: 'pending',
   sort_order: 0,
   url: '',
@@ -32,6 +32,15 @@ export const blankEntry = {
     rewarded:    { enabled: false, unit_id: '', frequency: 0 },
     native:      { enabled: false, unit_id: '', frequency: 3 },
     adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto' },
+  },
+  billing: {
+    enabled: false,
+    grace_days: 3,
+    google_play: {
+      enabled: false,
+      package_name: '',
+      service_account_json: '',
+    },
   },
 };
 

@@ -51,7 +51,7 @@ class AdminApiController extends Controller
                 'apps' => Domain::whereIn('entry_type', ['app', 'both'])->count(),
                 'websites' => Domain::whereIn('entry_type', ['website', 'both'])->count(),
                 'memberships' => AppMembership::where('is_active', true)
-                    ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                    ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now())->orWhere('grace_expires_at', '>', now()))
                     ->count(),
                 'membership_plans' => MembershipPlan::where('is_active', true)->count(),
                 'users' => UserDevice::count(),
@@ -85,6 +85,9 @@ class AdminApiController extends Controller
         $data['show_in_apps_gallery'] = $request->boolean('show_in_apps_gallery');
         $data['sort_order'] = empty($data['sort_order']) ? ((int) Domain::max('sort_order') + 1) : $data['sort_order'];
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
+        if (Schema::hasColumn('domains', 'billing_settings')) {
+            $data['billing_settings'] = $this->billingSettingsFromRequest($request);
+        }
         $this->applyEntryLogo($request, $data);
 
         $entry = Domain::create($data);
@@ -100,6 +103,9 @@ class AdminApiController extends Controller
         $data['secondary_color'] = $data['secondary_color'] ?? ($domain->secondary_color ?: '#ffffff');
         $data['show_in_apps_gallery'] = $request->boolean('show_in_apps_gallery');
         $data['ads_settings'] = $this->adsSettingsFromRequest($request);
+        if (Schema::hasColumn('domains', 'billing_settings')) {
+            $data['billing_settings'] = $this->billingSettingsFromRequest($request, $domain);
+        }
         $this->applyEntryLogo($request, $data, $domain);
         $domain->update($data);
 
@@ -277,7 +283,7 @@ class AdminApiController extends Controller
 
     public function storePlan(Request $request)
     {
-        $data = $this->validatePlan($request);
+        $data = $this->normalizePlanData($this->validatePlan($request));
         $features = $request->has('features') ? ($data['features'] ?? []) : null;
         unset($data['features']);
         $data['is_active'] = $request->boolean('is_active');
@@ -292,7 +298,7 @@ class AdminApiController extends Controller
 
     public function updatePlan(Request $request, MembershipPlan $plan)
     {
-        $data = $this->validatePlan($request);
+        $data = $this->normalizePlanData($this->validatePlan($request));
         $features = $request->has('features') ? ($data['features'] ?? []) : null;
         unset($data['features']);
         $data['is_active'] = $request->boolean('is_active');
@@ -588,7 +594,7 @@ class AdminApiController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'entry_type' => ['required', Rule::in(['app', 'website', 'both', 'other'])],
             'resources' => ['nullable', 'array'],
-            'resources.*' => ['string', Rule::in(['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'app-version'])],
+            'resources.*' => ['string', Rule::in(['users', 'plans', 'memberships', 'notifications', 'faqs', 'feedback', 'features', 'marketing', 'pages', 'notes', 'files', 'fcm', 'smtp', 'admob', 'billing', 'app-version'])],
             'status' => ['required', Rule::in(['pending', 'started', 'working'])],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'url' => ['nullable', 'url'],
@@ -634,6 +640,7 @@ class AdminApiController extends Controller
             'app_version',
             'min_build_code',
             'force_update',
+            'billing_settings',
         ] as $column) {
             if (array_key_exists($column, $data) && ! Schema::hasColumn('domains', $column)) {
                 unset($data[$column]);
@@ -669,10 +676,22 @@ class AdminApiController extends Controller
             'domain_id' => ['required', 'exists:domains,id'],
             'name' => ['required', 'string', 'max:255'],
             'monthly_price' => ['required', 'numeric', 'min:0'],
-            'yearly_price' => ['required', 'numeric', 'min:0'],
+            'yearly_price' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'size:3'],
             'free_trial_days' => ['nullable', 'integer', 'min:0'],
+            'yearly_free_months' => ['nullable', 'integer', 'min:0', 'max:12'],
             'tagline' => ['nullable', 'string', 'max:255'],
             'yearly_benefit' => ['nullable', 'string', 'max:255'],
+            'google_play_monthly_product_id' => ['nullable', 'string', 'max:255'],
+            'google_play_monthly_base_plan_id' => ['nullable', 'string', 'max:255'],
+            'google_play_monthly_offer_id' => ['nullable', 'string', 'max:255'],
+            'google_play_yearly_product_id' => ['nullable', 'string', 'max:255'],
+            'google_play_yearly_base_plan_id' => ['nullable', 'string', 'max:255'],
+            'google_play_yearly_offer_id' => ['nullable', 'string', 'max:255'],
+            'country_prices' => ['nullable', 'array'],
+            'country_prices.*.monthly_price' => ['nullable', 'numeric', 'min:0'],
+            'country_prices.*.yearly_price' => ['nullable', 'numeric', 'min:0'],
+            'country_prices.*.currency' => ['nullable', 'string', 'size:3'],
             'sorting' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
             'features' => ['nullable', 'array'],
@@ -682,6 +701,45 @@ class AdminApiController extends Controller
             'features.*.sorting' => ['nullable', 'integer', 'min:0'],
             'features.*.is_active' => ['boolean'],
         ]);
+    }
+
+    private function normalizePlanData(array $data): array
+    {
+        $monthlyPrice = (float) ($data['monthly_price'] ?? 0);
+        $yearlyFreeMonths = min(12, max(0, (int) ($data['yearly_free_months'] ?? 0)));
+        $data['yearly_free_months'] = $yearlyFreeMonths;
+        $data['yearly_price'] = round($monthlyPrice * max(0, 12 - $yearlyFreeMonths), 2);
+        $data['currency'] = strtoupper($data['currency'] ?? 'USD');
+        $data['free_trial_days'] = (int) ($data['free_trial_days'] ?? 0);
+
+        if ($yearlyFreeMonths > 0 && empty($data['yearly_benefit'])) {
+            $data['yearly_benefit'] = "{$yearlyFreeMonths} months free";
+        }
+
+        $countryPrices = [];
+        foreach (($data['country_prices'] ?? []) as $countryCode => $price) {
+            if (! is_array($price)) {
+                continue;
+            }
+
+            $countryCode = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', (string) $countryCode), 0, 2));
+            if (strlen($countryCode) !== 2) {
+                continue;
+            }
+
+            $countryMonthly = (float) ($price['monthly_price'] ?? 0);
+            $countryPrices[$countryCode] = [
+                'monthly_price' => $countryMonthly,
+                'yearly_price' => isset($price['yearly_price'])
+                    ? (float) $price['yearly_price']
+                    : round($countryMonthly * max(0, 12 - $yearlyFreeMonths), 2),
+                'currency' => strtoupper($price['currency'] ?? $data['currency']),
+            ];
+        }
+
+        $data['country_prices'] = $countryPrices;
+
+        return $data;
     }
 
     private function validateFeature(Request $request): array
@@ -824,5 +882,29 @@ class AdminApiController extends Controller
         ];
 
         return $settings;
+    }
+
+    private function billingSettingsFromRequest(Request $request, ?Domain $domain = null): array
+    {
+        $existing = $domain?->billing_settings ?? [];
+        $existingGoogle = $existing['google_play'] ?? [];
+        $serviceAccountJson = $request->input('billing.google_play.service_account_json');
+
+        if (($serviceAccountJson === null || trim((string) $serviceAccountJson) === '') && ! empty($existingGoogle['service_account_json'])) {
+            $serviceAccountJson = $existingGoogle['service_account_json'];
+        }
+
+        return [
+            'enabled' => $request->boolean('billing.enabled'),
+            'grace_days' => max(0, (int) $request->input('billing.grace_days', $existing['grace_days'] ?? 3)),
+            'google_play' => [
+                'enabled' => $request->boolean('billing.google_play.enabled'),
+                'package_name' => trim((string) $request->input(
+                    'billing.google_play.package_name',
+                    $existingGoogle['package_name'] ?? $request->input('application_id')
+                )),
+                'service_account_json' => $serviceAccountJson,
+            ],
+        ];
     }
 }

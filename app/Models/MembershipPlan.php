@@ -14,9 +14,18 @@ class MembershipPlan extends Model
         'name',
         'monthly_price',
         'yearly_price',
+        'currency',
         'free_trial_days',
+        'yearly_free_months',
         'tagline',
         'yearly_benefit',
+        'google_play_monthly_product_id',
+        'google_play_monthly_base_plan_id',
+        'google_play_monthly_offer_id',
+        'google_play_yearly_product_id',
+        'google_play_yearly_base_plan_id',
+        'google_play_yearly_offer_id',
+        'country_prices',
         'sorting',
         'is_active',
     ];
@@ -25,6 +34,8 @@ class MembershipPlan extends Model
         'monthly_price' => 'decimal:2',
         'yearly_price' => 'decimal:2',
         'free_trial_days' => 'integer',
+        'yearly_free_months' => 'integer',
+        'country_prices' => 'array',
         'is_active' => 'boolean',
     ];
 

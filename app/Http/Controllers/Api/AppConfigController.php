@@ -28,7 +28,9 @@ class AppConfigController extends Controller
         $membershipQuery = AppMembership::where('domain_id', $domain->id)
             ->where('is_active', true)
             ->where(function ($query) {
-                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now())
+                    ->orWhere('grace_expires_at', '>', now());
             });
 
         if ($deviceId) {
@@ -85,44 +87,11 @@ class AppConfigController extends Controller
                 ])
                 ->values(),
             'ads' => $domain->ads_settings ?? [],
+            'billing' => $this->billingPayload($domain),
             'auth' => [
                 'login_provider' => 'google',
             ],
-            'membership' => [
-                'is_logged_in' => (bool) $email,
-                'is_active' => (bool) $membership,
-                'plan' => $membership?->plan ?? 'free',
-                'expires_at' => $membership?->expires_at?->toIso8601String(),
-                'plans' => $domain->membershipPlans()
-                    ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
-                    ->where('is_active', true)
-                    ->orderBy('sorting')
-                    ->get(['id', 'domain_id', 'name', 'monthly_price', 'yearly_price', 'free_trial_days', 'tagline', 'yearly_benefit', 'sorting'])
-                    ->map(fn ($plan) => [
-                        'name' => $plan->name,
-                        'monthly_price' => (float) $plan->monthly_price,
-                        'yearly_price' => (float) $plan->yearly_price,
-                        'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
-                        'tagline' => $plan->tagline,
-                        'yearly_benefit' => $plan->yearly_benefit,
-                        'features' => $plan->features
-                            ->map(fn ($feature) => [
-                                'icon' => $feature->icon,
-                                'text' => $feature->text,
-                            ])
-                            ->values(),
-                    ])
-                    ->values(),
-                'features' => $domain->membershipFeatures()
-                    ->where('is_active', true)
-                    ->orderBy('sorting')
-                    ->get(['icon', 'text', 'sorting'])
-                    ->map(fn ($feature) => [
-                        'icon' => $feature->icon,
-                        'text' => $feature->text,
-                    ])
-                    ->values(),
-            ],
+            'membership' => $this->membershipPayload($domain, $membership, (bool) $email),
         ]);
     }
 
@@ -130,13 +99,13 @@ class AppConfigController extends Controller
     {
         $validated = $request->validate([
             'application_id' => ['required', 'string'],
-            'email' => ['required', 'email'],
+            'email' => ['nullable', 'email'],
             'device_id' => ['required', 'string', 'max:255'],
             'plan' => ['required', 'string', 'max:255'],
         ]);
 
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
-        $email = strtolower($validated['email']);
+        $email = isset($validated['email']) ? strtolower($validated['email']) : null;
         $deviceId = trim($validated['device_id']);
 
         $plan = MembershipPlan::where('domain_id', $domain->id)
@@ -146,6 +115,44 @@ class AppConfigController extends Controller
 
         $trialDays = (int) ($plan->free_trial_days ?? 0);
         abort_if($trialDays <= 0, 422, 'Free trial is not available for this plan.');
+
+        $activeMembership = AppMembership::where('domain_id', $domain->id)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now())
+                    ->orWhere('grace_expires_at', '>', now());
+            })
+            ->where(function ($query) use ($deviceId, $email) {
+                $query->where('device_id', $deviceId);
+
+                if ($email) {
+                    $query->orWhere('email', $email);
+                }
+            })
+            ->exists();
+
+        abort_if($activeMembership, 422, 'Membership is already active.');
+
+        $usedTrial = AppMembership::where('domain_id', $domain->id)
+            ->where(function ($query) use ($deviceId, $email) {
+                $query->where('device_id', $deviceId);
+
+                if ($email) {
+                    $query->orWhere('email', $email);
+                }
+            })
+            ->where(function ($query) {
+                $query->whereNotNull('trial_started_at')
+                    ->orWhere('cancellation_source', 'free_trial')
+                    ->orWhere('provider', 'trial');
+            })
+            ->exists();
+
+        abort_if($usedTrial, 422, 'Free trial has already been used.');
+
+        $expiresAt = now()->addDays($trialDays);
+        $graceDays = (int) (($domain->billing_settings['grace_days'] ?? 3));
 
         $membership = AppMembership::updateOrCreate(
             [
@@ -159,8 +166,13 @@ class AppConfigController extends Controller
                 'promo_code' => null,
                 'promo_discount' => 0,
                 'amount_paid' => 0,
+                'provider' => 'trial',
+                'status' => 'active',
                 'is_active' => true,
-                'expires_at' => now()->addDays($trialDays),
+                'expires_at' => $expiresAt,
+                'grace_expires_at' => $expiresAt->copy()->addDays(max(0, $graceDays)),
+                'trial_started_at' => now(),
+                'last_verified_at' => now(),
                 'cancelled_at' => null,
                 'cancellation_requested_at' => null,
                 'cancellation_reason' => null,
@@ -174,5 +186,107 @@ class AppConfigController extends Controller
             'device_id' => $deviceId,
             'email' => $email,
         ]));
+    }
+
+    private function membershipPayload(Domain $domain, ?AppMembership $membership, bool $isLoggedIn): array
+    {
+        $status = $membership ? $this->membershipStatus($membership) : 'free';
+        $hasAccess = $membership && $membership->is_active && in_array($status, ['active', 'grace'], true);
+
+        return [
+            'is_logged_in' => $isLoggedIn,
+            'is_active' => (bool) $hasAccess,
+            'ads_removed' => (bool) $hasAccess,
+            'in_grace' => $status === 'grace',
+            'status' => $status,
+            'plan' => $membership?->plan ?? 'free',
+            'provider' => $membership?->provider,
+            'product_id' => $membership?->product_id,
+            'expires_at' => $membership?->expires_at?->toIso8601String(),
+            'grace_expires_at' => $membership?->grace_expires_at?->toIso8601String(),
+            'renew_before' => $membership?->grace_expires_at?->toIso8601String(),
+            'plans' => $this->plansPayload($domain),
+            'features' => $domain->membershipFeatures()
+                ->where('is_active', true)
+                ->orderBy('sorting')
+                ->get(['icon', 'text', 'sorting'])
+                ->map(fn ($feature) => [
+                    'icon' => $feature->icon,
+                    'text' => $feature->text,
+                ])
+                ->values(),
+        ];
+    }
+
+    private function plansPayload(Domain $domain)
+    {
+        return $domain->membershipPlans()
+            ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
+            ->where('is_active', true)
+            ->orderBy('sorting')
+            ->get()
+            ->map(function ($plan) {
+                $yearlyFreeMonths = (int) ($plan->yearly_free_months ?? 0);
+                $yearlyPrice = (float) ($plan->yearly_price ?: ((float) $plan->monthly_price * max(0, 12 - $yearlyFreeMonths)));
+
+                return [
+                    'id' => $plan->id,
+                    'name' => $plan->name,
+                    'monthly_price' => (float) $plan->monthly_price,
+                    'yearly_price' => $yearlyPrice,
+                    'currency' => $plan->currency ?: 'USD',
+                    'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
+                    'yearly_free_months' => $yearlyFreeMonths,
+                    'tagline' => $plan->tagline,
+                    'yearly_benefit' => $plan->yearly_benefit,
+                    'google_play' => [
+                        'monthly_product_id' => $plan->google_play_monthly_product_id,
+                        'monthly_base_plan_id' => $plan->google_play_monthly_base_plan_id,
+                        'monthly_offer_id' => $plan->google_play_monthly_offer_id,
+                        'yearly_product_id' => $plan->google_play_yearly_product_id,
+                        'yearly_base_plan_id' => $plan->google_play_yearly_base_plan_id,
+                        'yearly_offer_id' => $plan->google_play_yearly_offer_id,
+                    ],
+                    'country_prices' => $plan->country_prices ?? [],
+                    'features' => $plan->features
+                        ->map(fn ($feature) => [
+                            'icon' => $feature->icon,
+                            'text' => $feature->text,
+                        ])
+                        ->values(),
+                ];
+            })
+            ->values();
+    }
+
+    private function billingPayload(Domain $domain): array
+    {
+        $settings = $domain->billing_settings ?? [];
+        $google = $settings['google_play'] ?? [];
+
+        return [
+            'enabled' => (bool) ($settings['enabled'] ?? false),
+            'grace_days' => (int) ($settings['grace_days'] ?? 3),
+            'google_play' => [
+                'enabled' => (bool) ($google['enabled'] ?? false),
+                'package_name' => $google['package_name'] ?? $domain->application_id,
+            ],
+        ];
+    }
+
+    private function membershipStatus(AppMembership $membership): string
+    {
+        $now = now();
+        $paidActive = $membership->expires_at === null || $membership->expires_at->greaterThan($now);
+
+        if ($paidActive) {
+            return $membership->status ?: 'active';
+        }
+
+        if ($membership->grace_expires_at !== null && $membership->grace_expires_at->greaterThan($now)) {
+            return 'grace';
+        }
+
+        return 'expired';
     }
 }
