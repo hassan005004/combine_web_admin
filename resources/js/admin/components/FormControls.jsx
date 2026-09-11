@@ -27,7 +27,21 @@ function FieldWrap({ label, hint, required, children }) {
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 
-export function Input({ label, value, onChange, type = 'text', required = false, name, placeholder, hint, disabled }) {
+export function Input({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required = false,
+  name,
+  placeholder,
+  hint,
+  disabled,
+  min,
+  max,
+  step,
+  inputMode,
+}) {
   return (
     <FieldWrap label={label} hint={hint} required={required}>
       <input
@@ -36,6 +50,10 @@ export function Input({ label, value, onChange, type = 'text', required = false,
         required={required}
         disabled={disabled}
         placeholder={placeholder}
+        min={min}
+        max={max}
+        step={step}
+        inputMode={inputMode}
         value={value ?? ''}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         className={type === 'color'

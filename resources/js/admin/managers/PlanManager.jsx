@@ -188,7 +188,7 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Name" value={form.name} onChange={(value) => update('name', value)} required />
-        <Input label="Monthly Price" value={form.monthly_price} onChange={(value) => updateBillingPrice('monthly_price', value)} required />
+        <Input label="Monthly Price" type="number" min="0" step="0.01" inputMode="decimal" value={form.monthly_price} onChange={(value) => updateBillingPrice('monthly_price', value)} required />
         <Input label="Yearly Price" value={form.yearly_price} onChange={() => {}} disabled hint="auto calculated" />
         <Input label="Currency" value={form.currency || 'USD'} onChange={(value) => update('currency', value.toUpperCase().slice(0, 3))} />
         <Input label="Free Trial Days" type="number" value={form.free_trial_days ?? 0} onChange={(value) => update('free_trial_days', Number(value))} />
@@ -287,6 +287,9 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, yearlyFreeMonths 
               <Input
                 label="Monthly Price"
                 type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
                 value={row.monthly_price ?? ''}
                 onChange={(value) => updateRow(index, 'monthly_price', value)}
                 placeholder="250"
