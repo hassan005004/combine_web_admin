@@ -238,6 +238,9 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
 function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPrice, yearlyFreeMonths }) {
   const [query, setQuery] = useState('');
   const [tierDrafts, setTierDrafts] = useState({});
+  const [collapsedTiers, setCollapsedTiers] = useState(() => (
+    Object.fromEntries(COUNTRY_PRICING_TIERS.map((tier) => [tier.id, true]))
+  ));
   const safeDefaultCurrency = normalizeCurrency(defaultCurrency);
   const defaultPriceText = String(defaultMonthlyPrice ?? '').trim() || '0.00';
   const overridesByCode = countryRowsByCode(rows);
@@ -323,6 +326,19 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
     setRows(rows.filter((row) => !tierCodes.has(normalizeCountryCode(row.country_code))));
   };
 
+  const toggleTier = (tierId) => {
+    setCollapsedTiers((current) => ({
+      ...current,
+      [tierId]: !(current[tierId] ?? true),
+    }));
+  };
+
+  const setAllTiersCollapsed = (collapsed) => {
+    setCollapsedTiers(Object.fromEntries(
+      COUNTRY_PRICING_TIERS.map((tier) => [tier.id, collapsed]),
+    ));
+  };
+
   const tierRows = COUNTRY_PRICING_TIERS.map((tier) => ({
     ...tier,
     allCountries: tier.countries,
@@ -358,25 +374,68 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
             Default now: {safeDefaultCurrency} {defaultPriceText}/month. Active overrides: {overrideCount}.
           </p>
         </div>
-        <div className="w-full sm:w-72">
-          <Input
-            label="Search Country"
-            value={query}
-            onChange={setQuery}
-            placeholder="PK, Pakistan, Tier 1"
-          />
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_288px] sm:items-end">
+          <button
+            type="button"
+            onClick={() => setAllTiersCollapsed(false)}
+            className="h-10 rounded-lg bg-white px-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-100 dark:ring-gray-700"
+          >
+            Expand All
+          </button>
+          <button
+            type="button"
+            onClick={() => setAllTiersCollapsed(true)}
+            className="h-10 rounded-lg bg-white px-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-100 dark:ring-gray-700"
+          >
+            Collapse All
+          </button>
+          <div>
+            <Input
+              label="Search Country"
+              value={query}
+              onChange={setQuery}
+              placeholder="PK, Pakistan, Tier 1"
+            />
+          </div>
         </div>
       </div>
 
       <div className="max-h-[680px] space-y-4 overflow-y-auto pr-1">
         {tierRows.map((tier) => (
           <div key={tier.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950">
+            {(() => {
+              const isCollapsed = collapsedTiers[tier.id] ?? true;
+              const showCountries = Boolean(normalizedQuery) || !isCollapsed;
+
+              return (
+                <>
             <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]">
               <div>
-                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                  {tier.label}: {tier.title}
-                </h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{tier.description}</p>
+                <button
+                  type="button"
+                  onClick={() => toggleTier(tier.id)}
+                  className="group flex w-full items-center gap-2 text-left"
+                  aria-expanded={showCountries}
+                >
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition group-hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:group-hover:bg-gray-700">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      aria-hidden="true"
+                      className={`transition-transform ${showCountries ? 'rotate-90' : ''}`}
+                    >
+                      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      {tier.label}: {tier.title}
+                    </span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">{tier.description}</span>
+                  </span>
+                </button>
                 <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
                   {tier.overrideCount}/{tier.allCountries.length} countries overridden
                   {normalizedQuery ? `, ${tier.countries.length} shown` : ''}
@@ -392,24 +451,37 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
               />
             </div>
 
-            <div className="space-y-2">
-              {tier.countries.map((country) => (
-                <CountryPriceRow
-                  key={country.code}
-                  country={{
-                    ...country,
-                    tierLabel: `${tier.label} - ${tier.title}`,
-                    tierDescription: tier.description,
-                  }}
-                  row={overridesByCode[country.code]}
-                  defaultCurrency={safeDefaultCurrency}
-                  defaultMonthlyPrice={defaultPriceText}
-                  yearlyFreeMonths={yearlyFreeMonths}
-                  onUpdate={updateCountry}
-                  onClear={clearCountry}
-                />
-              ))}
-            </div>
+            {showCountries ? (
+              <div className="space-y-2">
+                {tier.countries.map((country) => (
+                  <CountryPriceRow
+                    key={country.code}
+                    country={{
+                      ...country,
+                      tierLabel: `${tier.label} - ${tier.title}`,
+                      tierDescription: tier.description,
+                    }}
+                    row={overridesByCode[country.code]}
+                    defaultCurrency={safeDefaultCurrency}
+                    defaultMonthlyPrice={defaultPriceText}
+                    yearlyFreeMonths={yearlyFreeMonths}
+                    onUpdate={updateCountry}
+                    onClear={clearCountry}
+                  />
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleTier(tier.id)}
+                className="flex w-full items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300 dark:hover:bg-gray-900"
+              >
+                Show {tier.allCountries.length} countries
+              </button>
+            )}
+                </>
+              );
+            })()}
           </div>
         ))}
 
