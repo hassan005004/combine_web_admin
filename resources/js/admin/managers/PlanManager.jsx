@@ -10,14 +10,51 @@ function calculateYearlyPrice(monthlyPrice, yearlyFreeMonths = 0) {
   return (monthly * Math.max(0, 12 - freeMonths)).toFixed(2);
 }
 
-function parseCountryPrices(value) {
-  if (!value || !String(value).trim()) return {};
+function normalizeCountryCode(value) {
+  return String(value ?? '').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+}
 
-  try {
-    return JSON.parse(value);
-  } catch {
-    throw new Error('Country prices must be valid JSON.');
+function normalizeCurrency(value, fallback = 'USD') {
+  const currency = String(value || fallback || 'USD').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
+  return currency || 'USD';
+}
+
+function countryPricesToRows(countryPrices = {}) {
+  if (Array.isArray(countryPrices)) {
+    return countryPrices.map((row) => ({
+      country_code: normalizeCountryCode(row.country_code),
+      monthly_price: row.monthly_price ?? '',
+      yearly_price: row.yearly_price ?? '',
+      currency: normalizeCurrency(row.currency),
+    }));
   }
+
+  return Object.entries(countryPrices || {}).map(([countryCode, price]) => ({
+    country_code: normalizeCountryCode(countryCode),
+    monthly_price: price?.monthly_price ?? '',
+    yearly_price: price?.yearly_price ?? '',
+    currency: normalizeCurrency(price?.currency),
+  }));
+}
+
+function countryRowsToPrices(rows = [], defaultCurrency = 'USD', yearlyFreeMonths = 0) {
+  return rows.reduce((prices, row) => {
+    const countryCode = normalizeCountryCode(row.country_code);
+    const monthlyText = String(row.monthly_price ?? '').trim();
+    const monthlyPrice = Number.parseFloat(monthlyText);
+
+    if (!countryCode || monthlyText === '' || !Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+      return prices;
+    }
+
+    prices[countryCode] = {
+      monthly_price: monthlyPrice.toFixed(2),
+      yearly_price: calculateYearlyPrice(monthlyPrice, yearlyFreeMonths),
+      currency: normalizeCurrency(row.currency, defaultCurrency),
+    };
+
+    return prices;
+  }, {});
 }
 
 export function PlanManager({ entry, items, reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
@@ -37,8 +74,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     google_play_yearly_product_id: '',
     google_play_yearly_base_plan_id: '',
     google_play_yearly_offer_id: '',
-    country_prices: {},
-    country_prices_text: '{}',
+    country_prices: [],
     sorting: 0,
     is_active: true,
     features: [],
@@ -81,8 +117,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
       ...blankForm,
       ...plan,
       domain_id: entry.id,
-      country_prices: plan.country_prices || {},
-      country_prices_text: JSON.stringify(plan.country_prices || {}, null, 2),
+      country_prices: countryPricesToRows(plan.country_prices || {}),
     });
     setEditingId(plan.id);
     setScreen('form');
@@ -92,13 +127,11 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
   async function submit(event) {
     event.preventDefault();
     const payload = { ...form };
-    delete payload.country_prices_text;
-    try {
-      payload.country_prices = parseCountryPrices(form.country_prices_text);
-    } catch (error) {
-      window.alert(error.message);
-      return;
-    }
+    payload.country_prices = countryRowsToPrices(
+      form.country_prices,
+      payload.currency,
+      payload.yearly_free_months,
+    );
     payload.yearly_price = calculateYearlyPrice(payload.monthly_price, payload.yearly_free_months);
     const url = editingId ? `/admin-api/membership-plans/${editingId}` : '/admin-api/membership-plans';
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) });
@@ -136,6 +169,9 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
 
 function PlanForm({ form, setForm, editingId, submit, cancel }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const countryRows = Array.isArray(form.country_prices)
+    ? form.country_prices
+    : countryPricesToRows(form.country_prices || {});
   const updateBillingPrice = (key, value) => setForm((current) => {
     const next = { ...current, [key]: value };
     next.yearly_price = calculateYearlyPrice(next.monthly_price, next.yearly_free_months);
@@ -167,22 +203,123 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
         <Input label="Yearly Offer ID" value={form.google_play_yearly_offer_id || ''} onChange={(value) => update('google_play_yearly_offer_id', value)} />
         <Input label="Sorting" type="number" value={form.sorting ?? 0} onChange={(value) => update('sorting', Number(value))} />
         <Toggle label="Status" checked={!!form.is_active} onChange={(value) => update('is_active', value)} />
-        <label className="md:col-span-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Country Prices JSON
-          <textarea
-            value={form.country_prices_text || '{}'}
-            onChange={(event) => update('country_prices_text', event.target.value)}
-            rows={8}
-            placeholder='{"PK":{"monthly_price":250,"currency":"PKR"},"US":{"monthly_price":2.99,"currency":"USD"}}'
-            className="mt-1 block w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 shadow-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-          />
-        </label>
+        <CountryPricesEditor
+          rows={countryRows}
+          setRows={(rows) => update('country_prices', rows)}
+          defaultCurrency={form.currency || 'USD'}
+          yearlyFreeMonths={form.yearly_free_months || 0}
+        />
         <PlanFeatures features={form.features || []} setFeatures={(features) => update('features', features)} />
         <div className="md:col-span-3 flex gap-2">
           <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">{editingId ? 'Update Plan' : 'Create Plan'}</button>
           <button type="button" onClick={cancel} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function CountryPricesEditor({ rows, setRows, defaultCurrency, yearlyFreeMonths }) {
+  const addRow = () => setRows([
+    ...rows,
+    {
+      country_code: '',
+      monthly_price: '',
+      currency: normalizeCurrency(defaultCurrency),
+    },
+  ]);
+
+  const updateRow = (index, key, value) => {
+    setRows(rows.map((row, currentIndex) => (
+      currentIndex === index
+        ? {
+            ...row,
+            [key]: key === 'country_code'
+              ? normalizeCountryCode(value)
+              : key === 'currency'
+                ? normalizeCurrency(value)
+                : value,
+          }
+        : row
+    )));
+  };
+
+  const removeRow = (index) => {
+    setRows(rows.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  return (
+    <div className="md:col-span-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100">Country Price Overrides</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Default price applies to every country. Add a country only when that country needs a different price.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={addRow}
+          className="rounded-lg bg-violet-100 px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-300"
+        >
+          Add Country Price
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400">
+          No country override yet. All countries will use the default monthly and yearly price.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row, index) => (
+            <div
+              key={`${row.country_code || 'country'}-${index}`}
+              className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950 md:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_120px_44px]"
+            >
+              <Input
+                label="Country"
+                value={row.country_code || ''}
+                onChange={(value) => updateRow(index, 'country_code', value)}
+                placeholder="PK"
+                hint="ISO code"
+              />
+              <Input
+                label="Monthly Price"
+                type="number"
+                value={row.monthly_price ?? ''}
+                onChange={(value) => updateRow(index, 'monthly_price', value)}
+                placeholder="250"
+              />
+              <Input
+                label="Yearly Price"
+                value={calculateYearlyPrice(row.monthly_price, yearlyFreeMonths)}
+                onChange={() => {}}
+                disabled
+                hint="auto"
+              />
+              <Input
+                label="Currency"
+                value={row.currency || defaultCurrency || 'USD'}
+                onChange={(value) => updateRow(index, 'currency', value)}
+                placeholder="PKR"
+              />
+              <button
+                type="button"
+                title="Remove country price"
+                aria-label="Remove country price"
+                onClick={() => removeRow(index)}
+                className="mt-6 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/15 dark:text-red-300"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

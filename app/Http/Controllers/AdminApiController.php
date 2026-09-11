@@ -722,8 +722,12 @@ class AdminApiController extends Controller
                 continue;
             }
 
-            $countryCode = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', (string) $countryCode), 0, 2));
-            if (strlen($countryCode) !== 2) {
+            $countryCode = MembershipPlan::normalizeCountryCode($countryCode);
+            if (! $countryCode) {
+                continue;
+            }
+
+            if (! array_key_exists('monthly_price', $price) || $price['monthly_price'] === null || $price['monthly_price'] === '') {
                 continue;
             }
 

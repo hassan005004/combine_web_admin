@@ -194,12 +194,10 @@ class MembershipPurchaseController extends Controller
 
     private function priceForPlan(MembershipPlan $plan, string $period, ?string $countryCode): array
     {
-        $countryPrice = $countryCode ? ($plan->country_prices[$countryCode] ?? null) : null;
+        $pricing = $plan->resolvedPricing($countryCode);
         $priceKey = $period === 'yearly' ? 'yearly_price' : 'monthly_price';
-        $amount = $countryPrice[$priceKey] ?? $plan->{$priceKey} ?? 0;
-        $currency = $countryPrice['currency'] ?? $plan->currency ?? 'USD';
 
-        return [(float) $amount, strtoupper((string) $currency)];
+        return [(float) $pricing[$priceKey], strtoupper((string) $pricing['currency'])];
     }
 
     private function membershipPayload(AppMembership $membership): array

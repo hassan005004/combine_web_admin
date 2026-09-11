@@ -18,11 +18,13 @@ class AppConfigController extends Controller
             'application_id' => ['required', 'string'],
             'device_id' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email'],
+            'country_code' => ['nullable', 'string', 'size:2'],
         ]);
 
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
         $deviceId = $validated['device_id'] ?? null;
         $email = $validated['email'] ?? null;
+        $countryCode = MembershipPlan::normalizeCountryCode($validated['country_code'] ?? null);
         $membership = null;
 
         $membershipQuery = AppMembership::where('domain_id', $domain->id)
@@ -91,7 +93,7 @@ class AppConfigController extends Controller
             'auth' => [
                 'login_provider' => 'google',
             ],
-            'membership' => $this->membershipPayload($domain, $membership, (bool) $email),
+            'membership' => $this->membershipPayload($domain, $membership, (bool) $email, $countryCode),
         ]);
     }
 
@@ -188,7 +190,7 @@ class AppConfigController extends Controller
         ]));
     }
 
-    private function membershipPayload(Domain $domain, ?AppMembership $membership, bool $isLoggedIn): array
+    private function membershipPayload(Domain $domain, ?AppMembership $membership, bool $isLoggedIn, ?string $countryCode = null): array
     {
         $status = $membership ? $this->membershipStatus($membership) : 'free';
         $hasAccess = $membership && $membership->is_active && in_array($status, ['active', 'grace'], true);
@@ -205,7 +207,7 @@ class AppConfigController extends Controller
             'expires_at' => $membership?->expires_at?->toIso8601String(),
             'grace_expires_at' => $membership?->grace_expires_at?->toIso8601String(),
             'renew_before' => $membership?->grace_expires_at?->toIso8601String(),
-            'plans' => $this->plansPayload($domain),
+            'plans' => $this->plansPayload($domain, $countryCode),
             'features' => $domain->membershipFeatures()
                 ->where('is_active', true)
                 ->orderBy('sorting')
@@ -218,23 +220,28 @@ class AppConfigController extends Controller
         ];
     }
 
-    private function plansPayload(Domain $domain)
+    private function plansPayload(Domain $domain, ?string $countryCode = null)
     {
         return $domain->membershipPlans()
             ->with(['features' => fn ($query) => $query->where('is_active', true)->orderBy('sorting')])
             ->where('is_active', true)
             ->orderBy('sorting')
             ->get()
-            ->map(function ($plan) {
+            ->map(function ($plan) use ($countryCode) {
                 $yearlyFreeMonths = (int) ($plan->yearly_free_months ?? 0);
-                $yearlyPrice = (float) ($plan->yearly_price ?: ((float) $plan->monthly_price * max(0, 12 - $yearlyFreeMonths)));
+                $pricing = $plan->resolvedPricing($countryCode);
 
                 return [
                     'id' => $plan->id,
                     'name' => $plan->name,
-                    'monthly_price' => (float) $plan->monthly_price,
-                    'yearly_price' => $yearlyPrice,
-                    'currency' => $plan->currency ?: 'USD',
+                    'monthly_price' => $pricing['monthly_price'],
+                    'yearly_price' => $pricing['yearly_price'],
+                    'currency' => $pricing['currency'],
+                    'default_monthly_price' => $pricing['default_monthly_price'],
+                    'default_yearly_price' => $pricing['default_yearly_price'],
+                    'default_currency' => $pricing['default_currency'],
+                    'selected_country_code' => $pricing['country_code'],
+                    'country_price_applied' => $pricing['country_price_applied'],
                     'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
                     'yearly_free_months' => $yearlyFreeMonths,
                     'tagline' => $plan->tagline,
