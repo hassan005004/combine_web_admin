@@ -23,6 +23,7 @@ const tabSlugByKey = {
   fcm:            'fcm-settings',
   smtp:           'smtp-settings',
   admob:          'admob',
+  billing:        'billing',
   users:          'active-users',
   pages:          'pages',
   files:          'files',
@@ -36,6 +37,41 @@ const tabSlugByKey = {
 };
 
 const tabKeyBySlug = Object.fromEntries(Object.entries(tabSlugByKey).map(([key, slug]) => [slug, key]));
+
+function formFromEntry(entry) {
+  const serverAds = entry.ads_settings || {};
+  const ads = {
+    bottom:      { enabled: false, unit_id: '', frequency: 0, ...(serverAds.bottom      || {}) },
+    app_open:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.app_open    || {}) },
+    full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
+    rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
+    native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
+    adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
+  };
+  const serverBilling = entry.billing_settings || {};
+  const serviceAccountJson = serverBilling.google_play?.service_account_json;
+  const billing = {
+    ...blankEntry.billing,
+    ...serverBilling,
+    google_play: {
+      ...blankEntry.billing.google_play,
+      ...(serverBilling.google_play || {}),
+      service_account_json: typeof serviceAccountJson === 'string'
+        ? serviceAccountJson
+        : serviceAccountJson
+          ? JSON.stringify(serviceAccountJson, null, 2)
+          : '',
+    },
+  };
+
+  return {
+    ...blankEntry,
+    ...entry,
+    social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) },
+    ads,
+    billing,
+  };
+}
 
 function routeFromPath(pathname = window.location.pathname) {
   const editMatch = pathname.match(/^\/domains\/(\d+)\/edit$/);
@@ -170,16 +206,7 @@ function AdminApp() {
     const entry = entries.find((item) => item.id === editingEntryId);
     if (entry) {
       // Map ads_settings (server field) → ads (form field)
-      const serverAds = entry.ads_settings || {};
-      const ads = {
-        bottom:      { enabled: false, unit_id: '', frequency: 0, ...(serverAds.bottom      || {}) },
-        app_open:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.app_open    || {}) },
-        full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
-        rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
-        native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
-        adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
-      };
-      setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads });
+      setEntryForm(formFromEntry(entry));
     }
   }, [entries, editingEntryId, page]);
 
@@ -312,23 +339,30 @@ function AdminApp() {
     try {
       const method = 'POST';
       const url    = editingEntryId ? `/admin-api/entries/${editingEntryId}` : '/admin-api/entries';
-      await request(url, { method, body: entryFormPayload(entryForm, editingEntryId) });
+      const response = await request(url, { method, body: entryFormPayload(entryForm, editingEntryId) });
+      const savedEntry = response.entry || null;
       const savedId = editingEntryId;
       await refresh(); // refresh entries list so sidebar select is up-to-date
       if (savedId) {
         await loadDetails(savedId); // reload details so latest values are live
-        setEntryForm(blankEntry);
-        setEditingEntryId(null);
-        // Stay on dashboard so user sees the updated entry
+        if (savedEntry) setEntryForm(formFromEntry(savedEntry));
+        setEditingEntryId(savedId);
         applyRoute(
-          { page: 'dashboard', selectedEntryId: savedId, detailTab: 'plans', editingEntryId: null },
+          { page: 'entry-form', selectedEntryId: savedId, detailTab, editingEntryId: savedId },
           true,
-          `/domains/${savedId}/dashboard`,
+          `/domains/${savedId}/edit`,
         );
       } else {
-        setEntryForm(blankEntry);
-        setEditingEntryId(null);
-        applyRoute({ page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null }, true, '/domains');
+        const nextId = savedEntry?.id;
+        setEntryForm(nextId ? formFromEntry(savedEntry) : blankEntry);
+        setEditingEntryId(nextId || null);
+        applyRoute(
+          nextId
+            ? { page: 'entry-form', selectedEntryId: nextId, detailTab: 'plans', editingEntryId: nextId }
+            : { page: 'entries', selectedEntryId: null, detailTab: 'plans', editingEntryId: null },
+          true,
+          nextId ? `/domains/${nextId}/edit` : '/domains',
+        );
       }
     } catch (err) {
       setError(err.message || 'Failed to save entry.');
@@ -406,31 +440,7 @@ function AdminApp() {
   }
 
   function editEntry(entry) {
-    const serverAds = entry.ads_settings || {};
-    const ads = {
-      bottom:      { enabled: false, unit_id: '', frequency: 0, ...(serverAds.bottom      || {}) },
-      app_open:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.app_open    || {}) },
-      full_screen: { enabled: false, unit_id: '', frequency: 5, ...(serverAds.full_screen || {}) },
-      rewarded:    { enabled: false, unit_id: '', frequency: 0, ...(serverAds.rewarded    || {}) },
-      native:      { enabled: false, unit_id: '', frequency: 3, ...(serverAds.native      || {}) },
-      adsense:     { enabled: false, client_id: '', slot_id: '', format: 'auto', ...(serverAds.adsense || {}) },
-    };
-    const serverBilling = entry.billing_settings || {};
-    const serviceAccountJson = serverBilling.google_play?.service_account_json;
-    const billing = {
-      ...blankEntry.billing,
-      ...serverBilling,
-      google_play: {
-        ...blankEntry.billing.google_play,
-        ...(serverBilling.google_play || {}),
-        service_account_json: typeof serviceAccountJson === 'string'
-          ? serviceAccountJson
-          : serviceAccountJson
-            ? JSON.stringify(serviceAccountJson, null, 2)
-            : '',
-      },
-    };
-    setEntryForm({ ...blankEntry, ...entry, social_links: { ...blankEntry.social_links, ...(entry.social_links || {}) }, ads, billing });
+    setEntryForm(formFromEntry(entry));
     // Keep selectedEntryId so the entry sidebar stays visible
     applyRoute(
       { page: 'entry-form', selectedEntryId: entry.id, detailTab: detailTab, editingEntryId: entry.id },

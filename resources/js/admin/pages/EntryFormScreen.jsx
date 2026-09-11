@@ -86,12 +86,36 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
       ...current,
       billing: { ...(current.billing || {}), [field]: value },
     }));
+  const updateBillingEnabled = (value) =>
+    setForm((current) => ({
+      ...current,
+      billing: {
+        ...(current.billing || {}),
+        enabled: value,
+        google_play: {
+          ...(current.billing?.google_play || {}),
+          enabled: value,
+        },
+      },
+    }));
   const updateGoogleBilling = (field, value) =>
     setForm((current) => ({
       ...current,
       billing: {
         ...(current.billing || {}),
         google_play: { ...(current.billing?.google_play || {}), [field]: value },
+      },
+    }));
+  const updateGoogleBillingEnabled = (value) =>
+    setForm((current) => ({
+      ...current,
+      billing: {
+        ...(current.billing || {}),
+        enabled: value,
+        google_play: {
+          ...(current.billing?.google_play || {}),
+          enabled: value,
+        },
       },
     }));
 
@@ -242,7 +266,7 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               <Toggle
                 label=""
                 checked={Boolean(form.billing?.enabled)}
-                onChange={(value) => updateBilling('enabled', value)}
+                onChange={updateBillingEnabled}
                 onText="On"
                 offText="Off"
               />
@@ -252,7 +276,7 @@ export function EntryFormScreen({ form, setForm, editingId, cancelEdit, saveEntr
               <Toggle
                 label="Google Play"
                 checked={Boolean(form.billing?.google_play?.enabled)}
-                onChange={(value) => updateGoogleBilling('enabled', value)}
+                onChange={updateGoogleBillingEnabled}
                 onText="Enabled"
                 offText="Disabled"
               />

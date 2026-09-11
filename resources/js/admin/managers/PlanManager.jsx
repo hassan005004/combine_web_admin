@@ -375,20 +375,6 @@ function CountryPricesEditor({ rows, setRows, defaultCurrency, defaultMonthlyPri
           </p>
         </div>
         <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_288px] sm:items-end">
-          <button
-            type="button"
-            onClick={() => setAllTiersCollapsed(false)}
-            className="h-10 rounded-lg bg-white px-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-100 dark:ring-gray-700"
-          >
-            Expand All
-          </button>
-          <button
-            type="button"
-            onClick={() => setAllTiersCollapsed(true)}
-            className="h-10 rounded-lg bg-white px-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-100 dark:ring-gray-700"
-          >
-            Collapse All
-          </button>
           <div>
             <Input
               label="Search Country"
@@ -526,7 +512,7 @@ function TierPriceControls({ tier, draft, defaultCurrency, onDraftChange, onAppl
   return (
     <div className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70 sm:grid-cols-[minmax(0,1fr)_110px_110px_92px]">
       <Input
-        label={`${tier.label} Monthly Rate`}
+        label="Monthly Rate"
         type="number"
         min="0"
         step="0.01"
@@ -534,7 +520,6 @@ function TierPriceControls({ tier, draft, defaultCurrency, onDraftChange, onAppl
         value={draft.monthly_price}
         onChange={(value) => onDraftChange(tier.id, 'monthly_price', value)}
         placeholder="0.25"
-        hint="apply all"
       />
       <Input
         label="Currency"
