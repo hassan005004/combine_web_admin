@@ -230,6 +230,7 @@ class AppConfigController extends Controller
             ->map(function ($plan) use ($countryCode) {
                 $yearlyFreeMonths = (int) ($plan->yearly_free_months ?? 0);
                 $pricing = $plan->resolvedPricing($countryCode);
+                $googlePlay = $plan->resolvedGooglePlay($countryCode);
 
                 return [
                     'id' => $plan->id,
@@ -241,19 +242,13 @@ class AppConfigController extends Controller
                     'default_yearly_price' => $pricing['default_yearly_price'],
                     'default_currency' => $pricing['default_currency'],
                     'selected_country_code' => $pricing['country_code'],
+                    'selected_country_tier' => $googlePlay['selected_country_tier'],
                     'country_price_applied' => $pricing['country_price_applied'],
                     'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
                     'yearly_free_months' => $yearlyFreeMonths,
                     'tagline' => $plan->tagline,
                     'yearly_benefit' => $plan->yearly_benefit,
-                    'google_play' => [
-                        'monthly_product_id' => $plan->google_play_monthly_product_id,
-                        'monthly_base_plan_id' => $plan->google_play_monthly_base_plan_id,
-                        'monthly_offer_id' => $plan->google_play_monthly_offer_id,
-                        'yearly_product_id' => $plan->google_play_yearly_product_id,
-                        'yearly_base_plan_id' => $plan->google_play_yearly_base_plan_id,
-                        'yearly_offer_id' => $plan->google_play_yearly_offer_id,
-                    ],
+                    'google_play' => $googlePlay,
                     'country_prices' => $plan->country_prices ?? [],
                     'features' => $plan->features
                         ->map(fn ($feature) => [

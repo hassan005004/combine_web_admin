@@ -688,6 +688,8 @@ class AdminApiController extends Controller
             'google_play_yearly_product_id' => ['nullable', 'string', 'max:255'],
             'google_play_yearly_base_plan_id' => ['nullable', 'string', 'max:255'],
             'google_play_yearly_offer_id' => ['nullable', 'string', 'max:255'],
+            'google_play_tier_product_ids' => ['nullable', 'array'],
+            'google_play_tier_product_ids.*.monthly_product_id' => ['nullable', 'string', 'max:255'],
             'country_prices' => ['nullable', 'array'],
             'country_prices.*.monthly_price' => ['nullable', 'numeric', 'min:0'],
             'country_prices.*.yearly_price' => ['nullable', 'numeric', 'min:0'],
@@ -711,6 +713,12 @@ class AdminApiController extends Controller
         $data['yearly_price'] = round($monthlyPrice * max(0, 12 - $yearlyFreeMonths), 2);
         $data['currency'] = strtoupper($data['currency'] ?? 'USD');
         $data['free_trial_days'] = (int) ($data['free_trial_days'] ?? 0);
+
+        if (Schema::hasColumn('membership_plans', 'google_play_tier_product_ids')) {
+            $data['google_play_tier_product_ids'] = MembershipPlan::normalizeTierProductIds($data['google_play_tier_product_ids'] ?? []);
+        } else {
+            unset($data['google_play_tier_product_ids']);
+        }
 
         if ($yearlyFreeMonths > 0 && empty($data['yearly_benefit'])) {
             $data['yearly_benefit'] = "{$yearlyFreeMonths} months free";

@@ -180,16 +180,13 @@ class MembershipPurchaseController extends Controller
 
         return MembershipPlan::where('domain_id', $domain->id)
             ->where('is_active', true)
-            ->where(function ($query) use ($productId) {
-                $query->where('google_play_monthly_product_id', $productId)
-                    ->orWhere('google_play_yearly_product_id', $productId);
-            })
-            ->first();
+            ->get()
+            ->first(fn (MembershipPlan $plan) => $plan->hasGooglePlayProductId($productId));
     }
 
     private function periodForProduct(MembershipPlan $plan, ?string $productId): string
     {
-        return $productId && $productId === $plan->google_play_yearly_product_id ? 'yearly' : 'monthly';
+        return $plan->periodForGooglePlayProductId($productId);
     }
 
     private function priceForPlan(MembershipPlan $plan, string $period, ?string $countryCode): array
