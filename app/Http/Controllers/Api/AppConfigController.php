@@ -244,6 +244,7 @@ class AppConfigController extends Controller
                     'selected_country_code' => $pricing['country_code'],
                     'selected_country_tier' => $googlePlay['selected_country_tier'],
                     'country_price_applied' => $pricing['country_price_applied'],
+                    'tier_price_applied' => $pricing['tier_price_applied'],
                     'free_trial_days' => (int) ($plan->free_trial_days ?? 0),
                     'yearly_free_months' => $yearlyFreeMonths,
                     'tagline' => $plan->tagline,

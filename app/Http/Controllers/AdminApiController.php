@@ -690,6 +690,10 @@ class AdminApiController extends Controller
             'google_play_yearly_offer_id' => ['nullable', 'string', 'max:255'],
             'google_play_tier_product_ids' => ['nullable', 'array'],
             'google_play_tier_product_ids.*.monthly_product_id' => ['nullable', 'string', 'max:255'],
+            'google_play_tier_product_ids.*.monthly_base_plan_id' => ['nullable', 'string', 'max:255'],
+            'google_play_tier_product_ids.*.monthly_offer_id' => ['nullable', 'string', 'max:255'],
+            'google_play_tier_product_ids.*.monthly_price' => ['nullable', 'numeric', 'min:0'],
+            'google_play_tier_product_ids.*.currency' => ['nullable', 'string', 'size:3'],
             'country_prices' => ['nullable', 'array'],
             'country_prices.*.monthly_price' => ['nullable', 'numeric', 'min:0'],
             'country_prices.*.yearly_price' => ['nullable', 'numeric', 'min:0'],
@@ -711,11 +715,20 @@ class AdminApiController extends Controller
         $yearlyFreeMonths = min(12, max(0, (int) ($data['yearly_free_months'] ?? 0)));
         $data['yearly_free_months'] = $yearlyFreeMonths;
         $data['yearly_price'] = round($monthlyPrice * max(0, 12 - $yearlyFreeMonths), 2);
-        $data['currency'] = strtoupper($data['currency'] ?? 'USD');
+        $data['currency'] = MembershipPlan::normalizeCurrencyCode($data['currency'] ?? null, 'USD') ?: 'USD';
         $data['free_trial_days'] = (int) ($data['free_trial_days'] ?? 0);
 
         if (Schema::hasColumn('membership_plans', 'google_play_tier_product_ids')) {
             $data['google_play_tier_product_ids'] = MembershipPlan::normalizeTierProductIds($data['google_play_tier_product_ids'] ?? []);
+            $firstTierPrice = collect($data['google_play_tier_product_ids'])
+                ->first(fn ($tier) => is_array($tier) && array_key_exists('monthly_price', $tier));
+
+            if ($monthlyPrice <= 0 && is_array($firstTierPrice)) {
+                $monthlyPrice = (float) ($firstTierPrice['monthly_price'] ?? 0);
+                $data['monthly_price'] = round($monthlyPrice, 2);
+                $data['yearly_price'] = round($monthlyPrice * max(0, 12 - $yearlyFreeMonths), 2);
+                $data['currency'] = MembershipPlan::normalizeCurrencyCode($firstTierPrice['currency'] ?? null, $data['currency']) ?: $data['currency'];
+            }
         } else {
             unset($data['google_play_tier_product_ids']);
         }
@@ -745,7 +758,7 @@ class AdminApiController extends Controller
                 'yearly_price' => isset($price['yearly_price'])
                     ? (float) $price['yearly_price']
                     : round($countryMonthly * max(0, 12 - $yearlyFreeMonths), 2),
-                'currency' => strtoupper($price['currency'] ?? $data['currency']),
+                'currency' => MembershipPlan::normalizeCurrencyCode($price['currency'] ?? null, $data['currency']) ?: $data['currency'],
             ];
         }
 

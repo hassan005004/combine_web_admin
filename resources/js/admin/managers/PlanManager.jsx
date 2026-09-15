@@ -28,12 +28,39 @@ function normalizeTierId(value) {
 function normalizeTierProductIds(value = {}) {
   return Object.entries(value || {}).reduce((ids, [tierKey, tierValue]) => {
     const tierId = normalizeTierId(tierKey);
-    const monthlyProductId = typeof tierValue === 'string'
-      ? tierValue.trim()
-      : String(tierValue?.monthly_product_id ?? tierValue?.product_id ?? '').trim();
+    const tierValues = typeof tierValue === 'string'
+      ? { monthly_product_id: tierValue }
+      : (tierValue || {});
+    const monthlyProductId = String(tierValues.monthly_product_id ?? tierValues.product_id ?? '').trim();
+    const monthlyBasePlanId = String(tierValues.monthly_base_plan_id ?? tierValues.base_plan_id ?? '').trim();
+    const monthlyOfferId = String(tierValues.monthly_offer_id ?? tierValues.offer_id ?? '').trim();
+    const monthlyPriceText = String(tierValues.monthly_price ?? '').trim();
+    const monthlyPrice = Number.parseFloat(monthlyPriceText);
+    const currencyText = String(tierValues.currency ?? '').trim();
+    const tierConfig = {};
 
-    if (tierId && monthlyProductId) {
-      ids[tierId] = { monthly_product_id: monthlyProductId };
+    if (monthlyProductId) {
+      tierConfig.monthly_product_id = monthlyProductId;
+    }
+
+    if (monthlyBasePlanId) {
+      tierConfig.monthly_base_plan_id = monthlyBasePlanId;
+    }
+
+    if (monthlyOfferId) {
+      tierConfig.monthly_offer_id = monthlyOfferId;
+    }
+
+    if (monthlyPriceText !== '' && Number.isFinite(monthlyPrice) && monthlyPrice >= 0) {
+      tierConfig.monthly_price = monthlyPriceText;
+    }
+
+    if (currencyText) {
+      tierConfig.currency = normalizeCurrency(currencyText);
+    }
+
+    if (tierId && Object.keys(tierConfig).length > 0) {
+      ids[tierId] = tierConfig;
     }
 
     return ids;
@@ -163,13 +190,23 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
   async function submit(event) {
     event.preventDefault();
     const payload = { ...form };
+    payload.google_play_tier_product_ids = normalizeTierProductIds(form.google_play_tier_product_ids);
+    const firstTierWithPrice = COUNTRY_PRICING_TIERS
+      .map((tier) => payload.google_play_tier_product_ids[tier.id])
+      .find((tierConfig) => {
+        const monthlyPrice = Number.parseFloat(tierConfig?.monthly_price);
+        return Number.isFinite(monthlyPrice) && monthlyPrice > 0;
+      });
+    if ((Number.parseFloat(payload.monthly_price) || 0) <= 0 && firstTierWithPrice) {
+      payload.monthly_price = firstTierWithPrice.monthly_price;
+      payload.currency = firstTierWithPrice.currency || payload.currency || 'USD';
+    }
+    payload.yearly_price = calculateYearlyPrice(payload.monthly_price, payload.yearly_free_months);
     payload.country_prices = countryRowsToPrices(
       form.country_prices,
       payload.currency,
       payload.yearly_free_months,
     );
-    payload.google_play_tier_product_ids = normalizeTierProductIds(form.google_play_tier_product_ids);
-    payload.yearly_price = calculateYearlyPrice(payload.monthly_price, payload.yearly_free_months);
     const url = editingId ? `/admin-api/membership-plans/${editingId}` : '/admin-api/membership-plans';
     await request(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) });
     await reload();
@@ -192,7 +229,7 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     <>
       <DataRows
         items={items}
-        columns={['name', 'monthly_price', 'yearly_price', 'currency', 'free_trial_days', 'yearly_free_months', 'google_play_monthly_product_id', 'google_play_yearly_product_id']}
+        columns={['name', 'free_trial_days', 'yearly_free_months', 'sorting', 'is_active']}
         actions={(item) => (
           <ActionGroup>
             <EditButton label={`Edit ${item.name}`} onClick={() => editPlan(item)} />
@@ -225,19 +262,10 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Name" value={form.name} onChange={(value) => update('name', value)} required />
-        <Input label="Monthly Price" type="number" min="0" step="0.01" inputMode="decimal" value={form.monthly_price} onChange={(value) => updateBillingPrice('monthly_price', value)} required />
-        <Input label="Yearly Price" value={form.yearly_price} onChange={() => {}} disabled hint="auto calculated" />
-        <Input label="Currency" value={form.currency || 'USD'} onChange={(value) => update('currency', value.toUpperCase().slice(0, 3))} />
         <Input label="Free Trial Days" type="number" value={form.free_trial_days ?? 0} onChange={(value) => update('free_trial_days', Number(value))} />
         <Input label="Yearly Free Months" type="number" value={form.yearly_free_months ?? 0} onChange={(value) => updateBillingPrice('yearly_free_months', Math.min(12, Math.max(0, Number(value) || 0)))} />
         <Input label="Tagline" value={form.tagline || ''} onChange={(value) => update('tagline', value)} />
         <Input label="Yearly Benefit" value={form.yearly_benefit || ''} onChange={(value) => update('yearly_benefit', value)} />
-        <Input label="Monthly Product ID" value={form.google_play_monthly_product_id || ''} onChange={(value) => update('google_play_monthly_product_id', value)} placeholder="remove_ads_monthly" />
-        <Input label="Monthly Base Plan ID" value={form.google_play_monthly_base_plan_id || ''} onChange={(value) => update('google_play_monthly_base_plan_id', value)} placeholder="monthly" />
-        <Input label="Monthly Offer ID" value={form.google_play_monthly_offer_id || ''} onChange={(value) => update('google_play_monthly_offer_id', value)} />
-        <Input label="Yearly Product ID" value={form.google_play_yearly_product_id || ''} onChange={(value) => update('google_play_yearly_product_id', value)} placeholder="remove_ads_yearly" />
-        <Input label="Yearly Base Plan ID" value={form.google_play_yearly_base_plan_id || ''} onChange={(value) => update('google_play_yearly_base_plan_id', value)} placeholder="yearly" />
-        <Input label="Yearly Offer ID" value={form.google_play_yearly_offer_id || ''} onChange={(value) => update('google_play_yearly_offer_id', value)} />
         <Input label="Sorting" type="number" value={form.sorting ?? 0} onChange={(value) => update('sorting', Number(value))} />
         <Toggle label="Status" checked={!!form.is_active} onChange={(value) => update('is_active', value)} />
         <CountryPricesEditor
@@ -245,7 +273,6 @@ function PlanForm({ form, setForm, editingId, submit, cancel }) {
           setRows={(rows) => update('country_prices', rows)}
           defaultCurrency={form.currency || 'USD'}
           defaultMonthlyPrice={form.monthly_price || '0.00'}
-          defaultMonthlyProductId={form.google_play_monthly_product_id || ''}
           tierProductIds={form.google_play_tier_product_ids || {}}
           setTierProductIds={(ids) => update('google_play_tier_product_ids', ids)}
           yearlyFreeMonths={form.yearly_free_months || 0}
@@ -265,13 +292,11 @@ function CountryPricesEditor({
   setRows,
   defaultCurrency,
   defaultMonthlyPrice,
-  defaultMonthlyProductId,
   tierProductIds,
   setTierProductIds,
   yearlyFreeMonths,
 }) {
   const [query, setQuery] = useState('');
-  const [tierDrafts, setTierDrafts] = useState({});
   const [collapsedTiers, setCollapsedTiers] = useState(() => (
     Object.fromEntries(COUNTRY_PRICING_TIERS.map((tier) => [tier.id, true]))
   ));
@@ -321,24 +346,40 @@ function CountryPricesEditor({
     setRows(rows.filter((row) => normalizeCountryCode(row.country_code) !== normalizedCountryCode));
   };
 
-  const updateTierDraft = (tierId, key, value) => {
-    setTierDrafts((current) => ({
-      ...current,
-      [tierId]: {
-        ...(current[tierId] || {}),
-        [key]: key === 'currency' ? normalizeCurrency(value, safeDefaultCurrency) : value,
-      },
-    }));
+  const tierSettings = (tierId) => normalizedTierProductIds[tierId] || {};
+
+  const updateTierSetting = (tierId, key, value) => {
+    const normalizedTierId = normalizeTierId(tierId);
+    if (!normalizedTierId) return;
+
+    const next = { ...normalizedTierProductIds };
+    const current = { ...(next[normalizedTierId] || {}) };
+    const text = String(value ?? '').trim();
+
+    if (key === 'currency') {
+      if (text) {
+        current.currency = normalizeCurrency(text, safeDefaultCurrency);
+      } else {
+        delete current.currency;
+      }
+    } else if (text) {
+      current[key] = text;
+    } else {
+      delete current[key];
+    }
+
+    if (Object.keys(current).length === 0) {
+      delete next[normalizedTierId];
+    } else {
+      next[normalizedTierId] = current;
+    }
+
+    setTierProductIds(next);
   };
 
-  const tierDraft = (tierId) => ({
-    monthly_price: tierDrafts[tierId]?.monthly_price ?? '',
-    currency: tierDrafts[tierId]?.currency || safeDefaultCurrency,
-  });
-
   const applyTier = (tier) => {
-    const draft = tierDraft(tier.id);
-    const monthlyText = String(draft.monthly_price ?? '').trim();
+    const settings = tierSettings(tier.id);
+    const monthlyText = String(settings.monthly_price ?? '').trim();
     const monthlyPrice = Number.parseFloat(monthlyText);
 
     if (monthlyText === '' || !Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
@@ -351,7 +392,7 @@ function CountryPricesEditor({
       country_code: country.code,
       monthly_price: monthlyPrice.toFixed(2),
       yearly_price: calculateYearlyPrice(monthlyPrice, yearlyFreeMonths),
-      currency: normalizeCurrency(draft.currency, safeDefaultCurrency),
+      currency: normalizeCurrency(settings.currency, safeDefaultCurrency),
     }));
 
     setRows([...otherRows, ...tierRows]);
@@ -360,22 +401,6 @@ function CountryPricesEditor({
   const clearTier = (tier) => {
     const tierCodes = new Set(tier.allCountries.map((country) => country.code));
     setRows(rows.filter((row) => !tierCodes.has(normalizeCountryCode(row.country_code))));
-  };
-
-  const updateTierMonthlyProductId = (tierId, value) => {
-    const normalizedTierId = normalizeTierId(tierId);
-    if (!normalizedTierId) return;
-
-    const next = { ...normalizedTierProductIds };
-    const monthlyProductId = String(value ?? '').trim();
-
-    if (monthlyProductId) {
-      next[normalizedTierId] = { monthly_product_id: monthlyProductId };
-    } else {
-      delete next[normalizedTierId];
-    }
-
-    setTierProductIds(next);
   };
 
   const toggleTier = (tierId) => {
@@ -394,6 +419,7 @@ function CountryPricesEditor({
   const tierRows = COUNTRY_PRICING_TIERS.map((tier) => ({
     ...tier,
     allCountries: tier.countries,
+    settings: tierSettings(tier.id),
     overrideCount: tier.countries.filter((country) => {
       const monthlyText = String(overridesByCode[country.code]?.monthly_price ?? '').trim();
       return monthlyText !== '';
@@ -420,10 +446,10 @@ function CountryPricesEditor({
         <div>
           <h3 className="font-semibold text-gray-800 dark:text-gray-100">Country Price Overrides</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Default applies to all countries. Type a monthly price only where you want a country override; empty means default.
+            Tier settings are the default for each country. Type a country price only where you want a special override.
           </p>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Default now: {safeDefaultCurrency} {defaultPriceText}/month. Active overrides: {overrideCount}. Tier product IDs: {tierProductIdCount}.
+            Fallback default: {safeDefaultCurrency} {defaultPriceText}/month. Country overrides: {overrideCount}. Configured tiers: {tierProductIdCount}.
           </p>
         </div>
         <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_288px] sm:items-end">
@@ -444,10 +470,12 @@ function CountryPricesEditor({
             {(() => {
               const isCollapsed = collapsedTiers[tier.id] ?? true;
               const showCountries = Boolean(normalizedQuery) || !isCollapsed;
+              const tierDefaultMonthlyPrice = String(tier.settings?.monthly_price ?? defaultPriceText).trim() || defaultPriceText;
+              const tierDefaultCurrency = tier.settings?.currency || safeDefaultCurrency;
 
               return (
                 <>
-            <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]">
+            <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
               <div>
                 <button
                   type="button"
@@ -481,12 +509,9 @@ function CountryPricesEditor({
               </div>
               <TierPriceControls
                 tier={tier}
-                draft={tierDraft(tier.id)}
+                settings={tier.settings}
                 defaultCurrency={safeDefaultCurrency}
-                defaultMonthlyProductId={defaultMonthlyProductId}
-                monthlyProductId={normalizedTierProductIds[tier.id]?.monthly_product_id || ''}
-                onDraftChange={updateTierDraft}
-                onProductIdChange={updateTierMonthlyProductId}
+                onSettingChange={updateTierSetting}
                 onApply={applyTier}
                 onClear={clearTier}
               />
@@ -503,8 +528,8 @@ function CountryPricesEditor({
                       tierDescription: tier.description,
                     }}
                     row={overridesByCode[country.code]}
-                    defaultCurrency={safeDefaultCurrency}
-                    defaultMonthlyPrice={defaultPriceText}
+                    defaultCurrency={tierDefaultCurrency}
+                    defaultMonthlyPrice={tierDefaultMonthlyPrice}
                     yearlyFreeMonths={yearlyFreeMonths}
                     onUpdate={updateCountry}
                     onClear={clearCountry}
@@ -561,24 +586,22 @@ function CountryPricesEditor({
 
 function TierPriceControls({
   tier,
-  draft,
+  settings,
   defaultCurrency,
-  defaultMonthlyProductId,
-  monthlyProductId,
-  onDraftChange,
-  onProductIdChange,
+  onSettingChange,
   onApply,
   onClear,
 }) {
-  const monthlyText = String(draft.monthly_price ?? '').trim();
+  const monthlyText = String(settings?.monthly_price ?? '').trim();
   const monthlyPrice = Number.parseFloat(monthlyText);
   const canApply = monthlyText !== '' && Number.isFinite(monthlyPrice) && monthlyPrice >= 0;
-  const productPlaceholder = defaultMonthlyProductId
-    || `remove_ads_${tier.id.replace('-', '_')}_monthly`;
+  const productPlaceholder = `${tier.id}-countries`;
+  const basePlanPlaceholder = `${tier.id}-countries`;
+  const offerPlaceholder = `${tier.id}-offer`;
 
   return (
     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(150px,0.75fr)_120px_minmax(260px,1.25fr)]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="min-w-0">
           <Input
             label="Monthly Rate"
@@ -586,26 +609,44 @@ function TierPriceControls({
             min="0"
             step="0.01"
             inputMode="decimal"
-            value={draft.monthly_price}
-            onChange={(value) => onDraftChange(tier.id, 'monthly_price', value)}
+            value={settings?.monthly_price ?? ''}
+            onChange={(value) => onSettingChange(tier.id, 'monthly_price', value)}
             placeholder="0.25"
           />
         </div>
         <div className="min-w-0">
           <Input
             label="Currency"
-            value={draft.currency || defaultCurrency}
-            onChange={(value) => onDraftChange(tier.id, 'currency', value)}
+            value={settings?.currency || defaultCurrency}
+            onChange={(value) => onSettingChange(tier.id, 'currency', value)}
             placeholder={defaultCurrency}
           />
         </div>
         <div className="min-w-0">
           <Input
-            label="Monthly Product ID"
-            value={monthlyProductId}
-            onChange={(value) => onProductIdChange(tier.id, value)}
+            label="Product ID"
+            value={settings?.monthly_product_id || ''}
+            onChange={(value) => onSettingChange(tier.id, 'monthly_product_id', value)}
             placeholder={productPlaceholder}
-            hint="tier override"
+            hint="tier"
+          />
+        </div>
+        <div className="min-w-0">
+          <Input
+            label="Base Plan ID"
+            value={settings?.monthly_base_plan_id || ''}
+            onChange={(value) => onSettingChange(tier.id, 'monthly_base_plan_id', value)}
+            placeholder={basePlanPlaceholder}
+            hint="tier"
+          />
+        </div>
+        <div className="min-w-0">
+          <Input
+            label="Offer ID"
+            value={settings?.monthly_offer_id || ''}
+            onChange={(value) => onSettingChange(tier.id, 'monthly_offer_id', value)}
+            placeholder={offerPlaceholder}
+            hint="tier"
           />
         </div>
       </div>
@@ -616,7 +657,7 @@ function TierPriceControls({
           onClick={() => onApply(tier)}
           className="inline-flex h-10 items-center justify-center rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700"
         >
-          Apply Tier
+          Apply to Countries
         </button>
         <button
           type="button"
@@ -624,7 +665,7 @@ function TierPriceControls({
           onClick={() => onClear(tier)}
           className="inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 px-4 text-sm font-semibold text-gray-600 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
-          Clear
+          Clear Overrides
         </button>
       </div>
     </div>

@@ -58,6 +58,17 @@ class MembershipPlan extends Model
         return strlen($code) === 2 ? $code : null;
     }
 
+    public static function normalizeCurrencyCode(?string $currency, ?string $fallback = 'USD'): ?string
+    {
+        $code = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', (string) $currency), 0, 3));
+
+        if (strlen($code) === 3) {
+            return $code;
+        }
+
+        return $fallback === null ? null : self::normalizeCurrencyCode($fallback, null);
+    }
+
     public static function normalizeTierId(?string $tierId): ?string
     {
         $text = strtolower(trim((string) $tierId));
@@ -95,17 +106,39 @@ class MembershipPlan extends Model
                 continue;
             }
 
-            $monthlyProductId = is_array($ids)
-                ? trim((string) ($ids['monthly_product_id'] ?? $ids['product_id'] ?? ''))
-                : trim((string) $ids);
+            $values = is_array($ids) ? $ids : ['monthly_product_id' => $ids];
+            $monthlyProductId = trim((string) ($values['monthly_product_id'] ?? $values['product_id'] ?? ''));
+            $monthlyBasePlanId = trim((string) ($values['monthly_base_plan_id'] ?? $values['base_plan_id'] ?? ''));
+            $monthlyOfferId = trim((string) ($values['monthly_offer_id'] ?? $values['offer_id'] ?? ''));
+            $monthlyPrice = $values['monthly_price'] ?? null;
+            $currency = self::normalizeCurrencyCode($values['currency'] ?? null, null);
+            $row = [];
 
-            if ($monthlyProductId === '') {
+            if ($monthlyProductId !== '') {
+                $row['monthly_product_id'] = $monthlyProductId;
+            }
+
+            if ($monthlyBasePlanId !== '') {
+                $row['monthly_base_plan_id'] = $monthlyBasePlanId;
+            }
+
+            if ($monthlyOfferId !== '') {
+                $row['monthly_offer_id'] = $monthlyOfferId;
+            }
+
+            if ($monthlyPrice !== null && $monthlyPrice !== '' && is_numeric($monthlyPrice)) {
+                $row['monthly_price'] = round(max(0, (float) $monthlyPrice), 2);
+            }
+
+            if ($currency !== null) {
+                $row['currency'] = $currency;
+            }
+
+            if ($row === []) {
                 continue;
             }
 
-            $normalized[$tierId] = [
-                'monthly_product_id' => $monthlyProductId,
-            ];
+            $normalized[$tierId] = $row;
         }
 
         return $normalized;
@@ -123,29 +156,56 @@ class MembershipPlan extends Model
     {
         $defaultMonthlyPrice = (float) $this->monthly_price;
         $defaultYearlyPrice = (float) ($this->yearly_price ?: $this->calculatedYearlyPrice($defaultMonthlyPrice));
-        $defaultCurrency = strtoupper((string) ($this->currency ?: 'USD'));
+        $defaultCurrency = self::normalizeCurrencyCode($this->currency, 'USD') ?: 'USD';
         $countryCode = self::normalizeCountryCode($countryCode);
+        $selectedCountryTier = self::pricingTierForCountry($countryCode);
+        $tierConfig = $selectedCountryTier
+            ? ($this->normalizedGooglePlayTierProductIds()[$selectedCountryTier] ?? null)
+            : null;
         $monthlyPrice = $defaultMonthlyPrice;
         $yearlyPrice = $defaultYearlyPrice;
         $currency = $defaultCurrency;
         $countryPriceApplied = false;
+        $tierPriceApplied = false;
         $countryPrices = is_array($this->country_prices) ? $this->country_prices : [];
         $countryPrice = $countryCode ? ($countryPrices[$countryCode] ?? null) : null;
+        $tierProductIds = $this->normalizedGooglePlayTierProductIds();
+
+        if (is_array($tierConfig) && array_key_exists('monthly_price', $tierConfig)) {
+            $tierPriceApplied = true;
+            $monthlyPrice = (float) $tierConfig['monthly_price'];
+            $yearlyPrice = $this->calculatedYearlyPrice($monthlyPrice);
+            $currency = self::normalizeCurrencyCode($tierConfig['currency'] ?? null, $defaultCurrency) ?: $defaultCurrency;
+        } elseif ($defaultMonthlyPrice <= 0) {
+            foreach ($tierProductIds as $fallbackTierConfig) {
+                if (! is_array($fallbackTierConfig) || ! array_key_exists('monthly_price', $fallbackTierConfig)) {
+                    continue;
+                }
+
+                $tierPriceApplied = true;
+                $monthlyPrice = (float) $fallbackTierConfig['monthly_price'];
+                $yearlyPrice = $this->calculatedYearlyPrice($monthlyPrice);
+                $currency = self::normalizeCurrencyCode($fallbackTierConfig['currency'] ?? null, $defaultCurrency) ?: $defaultCurrency;
+                break;
+            }
+        }
 
         if (is_array($countryPrice)) {
             $countryPriceApplied = true;
             $monthlyPrice = array_key_exists('monthly_price', $countryPrice)
                 ? (float) $countryPrice['monthly_price']
-                : $defaultMonthlyPrice;
+                : $monthlyPrice;
             $yearlyPrice = array_key_exists('yearly_price', $countryPrice)
                 ? (float) $countryPrice['yearly_price']
                 : $this->calculatedYearlyPrice($monthlyPrice);
-            $currency = strtoupper((string) ($countryPrice['currency'] ?? $defaultCurrency));
+            $currency = self::normalizeCurrencyCode($countryPrice['currency'] ?? null, $currency) ?: $currency;
         }
 
         return [
             'country_code' => $countryCode,
+            'country_tier' => $selectedCountryTier,
             'country_price_applied' => $countryPriceApplied,
+            'tier_price_applied' => $tierPriceApplied && ! $countryPriceApplied,
             'monthly_price' => round($monthlyPrice, 2),
             'yearly_price' => round($yearlyPrice, 2),
             'currency' => $currency,
@@ -164,20 +224,55 @@ class MembershipPlan extends Model
     {
         $selectedCountryTier = self::pricingTierForCountry($countryCode);
         $tierProductIds = $this->normalizedGooglePlayTierProductIds();
-        $tierMonthlyProductId = $selectedCountryTier
-            ? ($tierProductIds[$selectedCountryTier]['monthly_product_id'] ?? null)
-            : null;
+        $selectedTierConfig = $selectedCountryTier ? ($tierProductIds[$selectedCountryTier] ?? []) : [];
+        $tierMonthlyProductId = $this->filledString($selectedTierConfig['monthly_product_id'] ?? null);
+        $tierMonthlyBasePlanId = $this->filledString($selectedTierConfig['monthly_base_plan_id'] ?? null);
+        $tierMonthlyOfferId = $this->filledString($selectedTierConfig['monthly_offer_id'] ?? null);
+        $defaultMonthlyProductId = $this->filledString($this->google_play_monthly_product_id);
+        $fallbackTierId = null;
+        $fallbackTierConfig = [];
+
+        if (! $tierMonthlyProductId && ! $defaultMonthlyProductId) {
+            foreach ($tierProductIds as $tierId => $tierIds) {
+                if (! empty($tierIds['monthly_product_id'])) {
+                    $fallbackTierId = $tierId;
+                    $fallbackTierConfig = $tierIds;
+                    break;
+                }
+            }
+        }
+
+        if ($tierMonthlyProductId) {
+            $monthlyProductId = $tierMonthlyProductId;
+            $monthlyBasePlanId = $tierMonthlyBasePlanId;
+            $monthlyOfferId = $tierMonthlyOfferId;
+            $resolvedSource = 'tier';
+        } elseif ($defaultMonthlyProductId) {
+            $monthlyProductId = $defaultMonthlyProductId;
+            $monthlyBasePlanId = $this->filledString($this->google_play_monthly_base_plan_id);
+            $monthlyOfferId = $this->filledString($this->google_play_monthly_offer_id);
+            $resolvedSource = 'default';
+        } else {
+            $monthlyProductId = $this->filledString($fallbackTierConfig['monthly_product_id'] ?? null);
+            $monthlyBasePlanId = $this->filledString($fallbackTierConfig['monthly_base_plan_id'] ?? null);
+            $monthlyOfferId = $this->filledString($fallbackTierConfig['monthly_offer_id'] ?? null);
+            $resolvedSource = $monthlyProductId ? 'fallback_tier' : null;
+        }
 
         return [
-            'monthly_product_id' => $tierMonthlyProductId ?: $this->google_play_monthly_product_id,
-            'monthly_base_plan_id' => $this->google_play_monthly_base_plan_id,
-            'monthly_offer_id' => $this->google_play_monthly_offer_id,
+            'monthly_product_id' => $monthlyProductId,
+            'monthly_base_plan_id' => $monthlyBasePlanId,
+            'monthly_offer_id' => $monthlyOfferId,
             'yearly_product_id' => $this->google_play_yearly_product_id,
             'yearly_base_plan_id' => $this->google_play_yearly_base_plan_id,
             'yearly_offer_id' => $this->google_play_yearly_offer_id,
             'default_monthly_product_id' => $this->google_play_monthly_product_id,
             'tier_monthly_product_id' => $tierMonthlyProductId,
+            'tier_monthly_base_plan_id' => $tierMonthlyBasePlanId,
+            'tier_monthly_offer_id' => $tierMonthlyOfferId,
             'selected_country_tier' => $selectedCountryTier,
+            'fallback_tier' => $fallbackTierId,
+            'resolved_source' => $resolvedSource,
             'tier_monthly_product_ids' => $tierProductIds,
         ];
     }
@@ -210,5 +305,12 @@ class MembershipPlan extends Model
             && $productId === $this->google_play_yearly_product_id;
 
         return $isYearly ? 'yearly' : 'monthly';
+    }
+
+    private function filledString(mixed $value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? null : $text;
     }
 }
