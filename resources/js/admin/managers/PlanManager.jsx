@@ -577,46 +577,56 @@ function TierPriceControls({
     || `remove_ads_${tier.id.replace('-', '_')}_monthly`;
 
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70 sm:grid-cols-[minmax(0,1fr)_110px_minmax(190px,1fr)_110px_92px]">
-      <Input
-        label="Monthly Rate"
-        type="number"
-        min="0"
-        step="0.01"
-        inputMode="decimal"
-        value={draft.monthly_price}
-        onChange={(value) => onDraftChange(tier.id, 'monthly_price', value)}
-        placeholder="0.25"
-      />
-      <Input
-        label="Currency"
-        value={draft.currency || defaultCurrency}
-        onChange={(value) => onDraftChange(tier.id, 'currency', value)}
-        placeholder={defaultCurrency}
-      />
-      <Input
-        label="Monthly Product ID"
-        value={monthlyProductId}
-        onChange={(value) => onProductIdChange(tier.id, value)}
-        placeholder={productPlaceholder}
-        hint="tier override"
-      />
-      <button
-        type="button"
-        disabled={!canApply}
-        onClick={() => onApply(tier)}
-        className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-violet-600 px-3 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700"
-      >
-        Apply Tier
-      </button>
-      <button
-        type="button"
-        disabled={tier.overrideCount === 0}
-        onClick={() => onClear(tier)}
-        className="mt-6 inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-      >
-        Clear
-      </button>
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(150px,0.75fr)_120px_minmax(260px,1.25fr)]">
+        <div className="min-w-0">
+          <Input
+            label="Monthly Rate"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={draft.monthly_price}
+            onChange={(value) => onDraftChange(tier.id, 'monthly_price', value)}
+            placeholder="0.25"
+          />
+        </div>
+        <div className="min-w-0">
+          <Input
+            label="Currency"
+            value={draft.currency || defaultCurrency}
+            onChange={(value) => onDraftChange(tier.id, 'currency', value)}
+            placeholder={defaultCurrency}
+          />
+        </div>
+        <div className="min-w-0">
+          <Input
+            label="Monthly Product ID"
+            value={monthlyProductId}
+            onChange={(value) => onProductIdChange(tier.id, value)}
+            placeholder={productPlaceholder}
+            hint="tier override"
+          />
+        </div>
+      </div>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          disabled={!canApply}
+          onClick={() => onApply(tier)}
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700"
+        >
+          Apply Tier
+        </button>
+        <button
+          type="button"
+          disabled={tier.overrideCount === 0}
+          onClick={() => onClear(tier)}
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 px-4 text-sm font-semibold text-gray-600 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          Clear
+        </button>
+      </div>
     </div>
   );
 }
