@@ -231,6 +231,16 @@ class AppConfigController extends Controller
                 $yearlyFreeMonths = (int) ($plan->yearly_free_months ?? 0);
                 $pricing = $plan->resolvedPricing($countryCode);
                 $googlePlay = $plan->resolvedGooglePlay($countryCode);
+                $monthlyAvailable = (float) $pricing['monthly_price'] > 0
+                    && ! empty($googlePlay['monthly_product_id'])
+                    && ! empty($googlePlay['monthly_base_plan_id']);
+                $yearlyAvailable = (float) $pricing['yearly_price'] > 0
+                    && ! empty($googlePlay['yearly_product_id'])
+                    && ! empty($googlePlay['yearly_base_plan_id']);
+
+                if (! $monthlyAvailable && ! $yearlyAvailable) {
+                    return null;
+                }
 
                 return [
                     'id' => $plan->id,
@@ -259,6 +269,7 @@ class AppConfigController extends Controller
                         ->values(),
                 ];
             })
+            ->filter()
             ->values();
     }
 
