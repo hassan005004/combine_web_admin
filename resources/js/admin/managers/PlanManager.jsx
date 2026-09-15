@@ -34,6 +34,9 @@ function normalizeTierProductIds(value = {}) {
     const monthlyProductId = String(tierValues.monthly_product_id ?? tierValues.product_id ?? '').trim();
     const monthlyBasePlanId = String(tierValues.monthly_base_plan_id ?? tierValues.base_plan_id ?? '').trim();
     const monthlyOfferId = String(tierValues.monthly_offer_id ?? tierValues.offer_id ?? '').trim();
+    const yearlyProductId = String(tierValues.yearly_product_id ?? '').trim();
+    const yearlyBasePlanId = String(tierValues.yearly_base_plan_id ?? '').trim();
+    const yearlyOfferId = String(tierValues.yearly_offer_id ?? '').trim();
     const monthlyPriceText = String(tierValues.monthly_price ?? '').trim();
     const monthlyPrice = Number.parseFloat(monthlyPriceText);
     const currencyText = String(tierValues.currency ?? '').trim();
@@ -49,6 +52,18 @@ function normalizeTierProductIds(value = {}) {
 
     if (monthlyOfferId) {
       tierConfig.monthly_offer_id = monthlyOfferId;
+    }
+
+    if (yearlyProductId) {
+      tierConfig.yearly_product_id = yearlyProductId;
+    }
+
+    if (yearlyBasePlanId) {
+      tierConfig.yearly_base_plan_id = yearlyBasePlanId;
+    }
+
+    if (yearlyOfferId) {
+      tierConfig.yearly_offer_id = yearlyOfferId;
     }
 
     if (monthlyPriceText !== '' && Number.isFinite(monthlyPrice) && monthlyPrice >= 0) {
@@ -191,16 +206,8 @@ export function PlanManager({ entry, items, reload, setHeaderAction, moduleActio
     event.preventDefault();
     const payload = { ...form };
     payload.google_play_tier_product_ids = normalizeTierProductIds(form.google_play_tier_product_ids);
-    const firstTierWithPrice = COUNTRY_PRICING_TIERS
-      .map((tier) => payload.google_play_tier_product_ids[tier.id])
-      .find((tierConfig) => {
-        const monthlyPrice = Number.parseFloat(tierConfig?.monthly_price);
-        return Number.isFinite(monthlyPrice) && monthlyPrice > 0;
-      });
-    if ((Number.parseFloat(payload.monthly_price) || 0) <= 0 && firstTierWithPrice) {
-      payload.monthly_price = firstTierWithPrice.monthly_price;
-      payload.currency = firstTierWithPrice.currency || payload.currency || 'USD';
-    }
+    payload.monthly_price = '0.00';
+    payload.currency = normalizeCurrency(payload.currency, 'USD');
     payload.yearly_price = calculateYearlyPrice(payload.monthly_price, payload.yearly_free_months);
     payload.country_prices = countryRowsToPrices(
       form.country_prices,
@@ -449,7 +456,7 @@ function CountryPricesEditor({
             Tier settings are the default for each country. Type a country price only where you want a special override.
           </p>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Fallback default: {safeDefaultCurrency} {defaultPriceText}/month. Country overrides: {overrideCount}. Configured tiers: {tierProductIdCount}.
+            Tier-only pricing is active. Country overrides: {overrideCount}. Configured tiers: {tierProductIdCount}.
           </p>
         </div>
         <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[auto_auto_288px] sm:items-end">
@@ -595,14 +602,22 @@ function TierPriceControls({
   const monthlyText = String(settings?.monthly_price ?? '').trim();
   const monthlyPrice = Number.parseFloat(monthlyText);
   const canApply = monthlyText !== '' && Number.isFinite(monthlyPrice) && monthlyPrice >= 0;
-  const productPlaceholder = `${tier.id}-countries`;
-  const basePlanPlaceholder = `${tier.id}-countries`;
-  const offerPlaceholder = `${tier.id}-offer`;
+  const monthlyProductPlaceholder = `${tier.id}-countries`;
+  const monthlyBasePlanPlaceholder = `${tier.id}-countries`;
+  const monthlyOfferPlaceholder = `${tier.id}-offer`;
+  const yearlyProductPlaceholder = `${tier.id}-yearly`;
+  const yearlyBasePlanPlaceholder = `${tier.id}-yearly`;
+  const yearlyOfferPlaceholder = `${tier.id}-yearly-offer`;
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="min-w-0">
+    <div className="space-y-3 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+      <details open className="group rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          <span>Billing Defaults</span>
+          <span className="text-xs font-medium text-gray-400 group-open:hidden">Show</span>
+          <span className="hidden text-xs font-medium text-gray-400 group-open:inline">Hide</span>
+        </summary>
+        <div className="grid grid-cols-1 gap-3 border-t border-gray-100 p-3 sm:grid-cols-2 dark:border-gray-800">
           <Input
             label="Monthly Rate"
             type="number"
@@ -613,8 +628,6 @@ function TierPriceControls({
             onChange={(value) => onSettingChange(tier.id, 'monthly_price', value)}
             placeholder="0.25"
           />
-        </div>
-        <div className="min-w-0">
           <Input
             label="Currency"
             value={settings?.currency || defaultCurrency}
@@ -622,34 +635,75 @@ function TierPriceControls({
             placeholder={defaultCurrency}
           />
         </div>
-        <div className="min-w-0">
-          <Input
-            label="Product ID"
-            value={settings?.monthly_product_id || ''}
-            onChange={(value) => onSettingChange(tier.id, 'monthly_product_id', value)}
-            placeholder={productPlaceholder}
-            hint="tier"
-          />
+      </details>
+
+      <details open className="group rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          <span>Google Play IDs</span>
+          <span className="text-xs font-medium text-gray-400 group-open:hidden">Show</span>
+          <span className="hidden text-xs font-medium text-gray-400 group-open:inline">Hide</span>
+        </summary>
+        <div className="space-y-4 border-t border-gray-100 p-3 dark:border-gray-800">
+          <div>
+            <h5 className="mb-2 text-xs font-bold uppercase text-gray-400 dark:text-gray-500">
+              Monthly Subscription
+            </h5>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <Input
+                label="Product ID"
+                value={settings?.monthly_product_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'monthly_product_id', value)}
+                placeholder={monthlyProductPlaceholder}
+                hint="monthly"
+              />
+              <Input
+                label="Base Plan ID"
+                value={settings?.monthly_base_plan_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'monthly_base_plan_id', value)}
+                placeholder={monthlyBasePlanPlaceholder}
+                hint="monthly"
+              />
+              <Input
+                label="Offer ID"
+                value={settings?.monthly_offer_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'monthly_offer_id', value)}
+                placeholder={monthlyOfferPlaceholder}
+                hint="monthly"
+              />
+            </div>
+          </div>
+
+          <div>
+            <h5 className="mb-2 text-xs font-bold uppercase text-gray-400 dark:text-gray-500">
+              Yearly Subscription
+            </h5>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <Input
+                label="Product ID"
+                value={settings?.yearly_product_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'yearly_product_id', value)}
+                placeholder={yearlyProductPlaceholder}
+                hint="yearly"
+              />
+              <Input
+                label="Base Plan ID"
+                value={settings?.yearly_base_plan_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'yearly_base_plan_id', value)}
+                placeholder={yearlyBasePlanPlaceholder}
+                hint="yearly"
+              />
+              <Input
+                label="Offer ID"
+                value={settings?.yearly_offer_id || ''}
+                onChange={(value) => onSettingChange(tier.id, 'yearly_offer_id', value)}
+                placeholder={yearlyOfferPlaceholder}
+                hint="yearly"
+              />
+            </div>
+          </div>
         </div>
-        <div className="min-w-0">
-          <Input
-            label="Base Plan ID"
-            value={settings?.monthly_base_plan_id || ''}
-            onChange={(value) => onSettingChange(tier.id, 'monthly_base_plan_id', value)}
-            placeholder={basePlanPlaceholder}
-            hint="tier"
-          />
-        </div>
-        <div className="min-w-0">
-          <Input
-            label="Offer ID"
-            value={settings?.monthly_offer_id || ''}
-            onChange={(value) => onSettingChange(tier.id, 'monthly_offer_id', value)}
-            placeholder={offerPlaceholder}
-            hint="tier"
-          />
-        </div>
-      </div>
+      </details>
+
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"

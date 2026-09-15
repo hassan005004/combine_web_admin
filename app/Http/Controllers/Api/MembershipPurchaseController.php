@@ -42,7 +42,8 @@ class MembershipPurchaseController extends Controller
             ]);
         }
 
-        $period = $this->periodForProduct($plan, $productId);
+        $verifiedBasePlanId = $verified['base_plan_id'] ?: ($validated['base_plan_id'] ?? null);
+        $period = $this->periodForProduct($plan, $productId, $verifiedBasePlanId);
         $countryCode = strtoupper($verified['country_code'] ?: ($validated['country_code'] ?? '')) ?: null;
         [$amountPaid, $currency] = $this->priceForPlan($plan, $period, $countryCode);
         $purchaseToken = $validated['purchase_token'];
@@ -75,7 +76,7 @@ class MembershipPurchaseController extends Controller
             'purchase_token' => $purchaseToken,
             'order_id' => $verified['order_id'],
             'product_id' => $productId,
-            'base_plan_id' => $verified['base_plan_id'] ?: ($validated['base_plan_id'] ?? null),
+            'base_plan_id' => $verifiedBasePlanId,
             'offer_id' => $verified['offer_id'] ?: ($validated['offer_id'] ?? null),
             'country_code' => $countryCode,
             'currency' => $currency,
@@ -184,9 +185,9 @@ class MembershipPurchaseController extends Controller
             ->first(fn (MembershipPlan $plan) => $plan->hasGooglePlayProductId($productId));
     }
 
-    private function periodForProduct(MembershipPlan $plan, ?string $productId): string
+    private function periodForProduct(MembershipPlan $plan, ?string $productId, ?string $basePlanId): string
     {
-        return $plan->periodForGooglePlayProductId($productId);
+        return $plan->periodForGooglePlayProductId($productId, $basePlanId);
     }
 
     private function priceForPlan(MembershipPlan $plan, string $period, ?string $countryCode): array
