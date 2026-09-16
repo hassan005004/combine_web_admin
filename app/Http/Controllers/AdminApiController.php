@@ -902,7 +902,7 @@ class AdminApiController extends Controller
         $provider = trim((string) ($data['provider'] ?? 'manual')) ?: 'manual';
         $status = trim((string) ($data['status'] ?? ($isActive ? 'active' : 'expired'))) ?: ($isActive ? 'active' : 'expired');
 
-        return [
+        $payload = [
             'domain_id' => (int) $data['domain_id'],
             'email' => $email ?: null,
             'device_id' => $deviceId ?: null,
@@ -927,8 +927,13 @@ class AdminApiController extends Controller
             'cancellation_requested_at' => $isActive ? null : ($membership?->cancellation_requested_at ?: now()),
             'cancellation_reason' => $isActive ? null : ($membership?->cancellation_reason),
             'cancellation_details' => $isActive ? null : ($membership?->cancellation_details),
-            'cancellation_source' => $isActive ? null : ($membership?->cancellation_source ?: 'admin'),
         ];
+
+        if (! $isActive) {
+            $payload['cancellation_source'] = $membership?->cancellation_source ?: 'admin';
+        }
+
+        return $payload;
     }
 
     private function matchingMembership(array $data): ?AppMembership

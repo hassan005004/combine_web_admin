@@ -3,24 +3,62 @@ export function Sidebar({
   selectedEntryId, detailTab, changeSelectedEntry,
   navigateSelected, leaveSelectedEntry, editEntry,
 }) {
+  const tabSlugByKey = {
+    plans: 'plans',
+    memberships: 'memberships',
+    notifications: 'notifications',
+    fcm: 'fcm-settings',
+    smtp: 'smtp-settings',
+    admob: 'admob',
+    users: 'active-users',
+    pages: 'pages',
+    files: 'files',
+    notes: 'notes',
+    faqs: 'faqs',
+    feedback: 'feedback',
+    features: 'feature-requests',
+    marketing: 'marketing',
+    'app-version': 'app-version',
+  };
+  const pageUrls = {
+    dashboard: '/dashboard',
+    entries: '/domains',
+    'staff-users': '/staff-users',
+    profile: '/account/profile',
+    password: '/account/password',
+    settings: '/settings',
+  };
   const assignedResources = selectedEntry?.resources;
   const hasResource = (key) => !Array.isArray(assignedResources) || assignedResources.includes(key);
   const section = (label, keys) => keys.some(hasResource) && <div className="admin-sidebar__section">{label}</div>;
+  const plainClick = (event, callback) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    event.preventDefault();
+    callback();
+  };
+  const selectedUrl = (next, tab = detailTab) => {
+    if (!selectedEntryId) return '/dashboard';
+    if (next === 'dashboard') return `/domains/${selectedEntryId}/dashboard`;
+    return `/domains/${selectedEntryId}/${tabSlugByKey[tab] || tabSlugByKey.plans}`;
+  };
   const link = (key, label, icon) => (
-    <button type="button" onClick={() => navigate(key)}
+    <a href={pageUrls[key] || '/domains'} onClick={(event) => plainClick(event, () => navigate(key))}
       className={`admin-sidebar__link w-full ${page === key || (key === 'entries' && page === 'entry-form') ? 'admin-sidebar__link--active' : ''}`}>
       <SidebarIcon name={icon} />
       <span className="admin-sidebar__text">{label}</span>
-    </button>
+    </a>
   );
 
   const ml = (tab, label, icon) => (
     hasResource(tab) &&
-    <button type="button" onClick={() => navigateSelected('manage', tab)}
+    <a href={selectedUrl('manage', tab)} onClick={(event) => plainClick(event, () => navigateSelected('manage', tab))}
       className={`admin-sidebar__link w-full ${page === 'manage' && detailTab === tab ? 'admin-sidebar__link--active' : ''}`}>
       <SidebarIcon name={icon} />
       <span className="admin-sidebar__text">{label}</span>
-    </button>
+    </a>
   );
 
   return (
@@ -28,12 +66,12 @@ export function Sidebar({
       <div className="admin-sidebar__switcher">
         <div className="admin-sidebar__switcher-row">
           {selectedMode && (
-            <button type="button" onClick={leaveSelectedEntry} className="admin-sidebar__return"
+            <a href="/dashboard" onClick={(event) => plainClick(event, leaveSelectedEntry)} className="admin-sidebar__return"
               title="Return to main panel" aria-label="Return to main panel">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                 <path d="M6.5 3 1.5 8l5 5V9h8V7h-8V3Z" />
               </svg>
-            </button>
+            </a>
           )}
           <select id="sidebar-entry-switcher" value={selectedEntryId || ''}
             onChange={(e) => changeSelectedEntry(e.target.value)} className="admin-sidebar__select">
@@ -47,16 +85,17 @@ export function Sidebar({
         {selectedMode ? (
           <>
             <div className="admin-sidebar__section">Entry</div>
-            <button type="button" onClick={() => navigateSelected('dashboard')}
+            <a href={selectedUrl('dashboard')} onClick={(event) => plainClick(event, () => navigateSelected('dashboard'))}
               className={`admin-sidebar__link w-full ${page === 'dashboard' ? 'admin-sidebar__link--active' : ''}`}>
               <SidebarIcon name="dashboard" />
               <span className="admin-sidebar__text">Dashboard</span>
-            </button>
-            <button type="button" onClick={() => editEntry && editEntry(selectedEntry)}
+            </a>
+            <a href={selectedEntryId ? `/domains/${selectedEntryId}/edit` : '/domains'}
+              onClick={(event) => plainClick(event, () => editEntry && editEntry(selectedEntry))}
               className={`admin-sidebar__link w-full ${page === 'entry-form' ? 'admin-sidebar__link--active' : ''}`}>
               <SidebarIcon name="edit" />
               <span className="admin-sidebar__text">Edit Entry</span>
-            </button>
+            </a>
             {ml('users',        'Active Users',    'users')}
 
             {section('Monetisation', ['plans', 'memberships'])}
