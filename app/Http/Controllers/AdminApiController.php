@@ -167,17 +167,12 @@ class AdminApiController extends Controller
 
     public function storeMembership(Request $request)
     {
-        $data = $request->validate([
-            'domain_id' => ['required', 'exists:domains,id'],
-            'email' => ['required', 'email'],
-            'plan' => ['required', 'string', 'max:255'],
-            'expires_at' => ['nullable', 'date'],
-            'is_active' => ['boolean'],
-        ]);
-        $data['email'] = strtolower($data['email']);
-        $data['is_active'] = $request->boolean('is_active');
+        $data = $this->validatedMembershipData($request);
+        $membership = $this->matchingMembership($data) ?: new AppMembership();
+        $this->releaseManualMembershipIdentifiers($data, $membership);
 
-        $membership = AppMembership::create($data);
+        $membership->fill($data);
+        $membership->save();
         app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership, 'created');
 
         return response()->json(['membership' => $membership], 201);
@@ -185,15 +180,8 @@ class AdminApiController extends Controller
 
     public function updateMembership(Request $request, AppMembership $membership)
     {
-        $data = $request->validate([
-            'domain_id' => ['required', 'exists:domains,id'],
-            'email' => ['required', 'email'],
-            'plan' => ['required', 'string', 'max:255'],
-            'expires_at' => ['nullable', 'date'],
-            'is_active' => ['boolean'],
-        ]);
-        $data['email'] = strtolower($data['email']);
-        $data['is_active'] = $request->boolean('is_active');
+        $data = $this->validatedMembershipData($request, $membership);
+        $this->releaseManualMembershipIdentifiers($data, $membership);
         $membership->update($data);
         app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership->fresh(), 'updated');
 
@@ -862,6 +850,128 @@ class AdminApiController extends Controller
         StaffUserEntity::where('user_id', $user->id)
             ->when($keptIds, fn ($query) => $query->whereNotIn('id', $keptIds))
             ->delete();
+    }
+
+    private function validatedMembershipData(Request $request, ?AppMembership $membership = null): array
+    {
+        $data = $request->validate([
+            'domain_id' => ['required', 'exists:domains,id'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'device_id' => ['nullable', 'string', 'max:255'],
+            'plan' => ['required', 'string', 'max:255'],
+            'provider' => ['nullable', 'string', 'max:50'],
+            'status' => ['nullable', 'string', 'max:50'],
+            'product_id' => ['nullable', 'string', 'max:255'],
+            'base_plan_id' => ['nullable', 'string', 'max:255'],
+            'offer_id' => ['nullable', 'string', 'max:255'],
+            'country_code' => ['nullable', 'string', 'size:2'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'expires_at' => ['nullable', 'date'],
+            'grace_expires_at' => ['nullable', 'date'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $email = isset($data['email']) ? strtolower(trim((string) $data['email'])) : null;
+        $deviceId = trim((string) ($data['device_id'] ?? ''));
+
+        if ($email === '' && $deviceId === '') {
+            throw ValidationException::withMessages([
+                'email' => 'Add an email or device id so the app can match this membership.',
+            ]);
+        }
+
+        $isActive = $request->boolean('is_active');
+        $provider = trim((string) ($data['provider'] ?? 'manual')) ?: 'manual';
+        $status = trim((string) ($data['status'] ?? ($isActive ? 'active' : 'expired'))) ?: ($isActive ? 'active' : 'expired');
+
+        return [
+            'domain_id' => (int) $data['domain_id'],
+            'email' => $email ?: null,
+            'device_id' => $deviceId ?: null,
+            'plan' => trim((string) $data['plan']),
+            'provider' => $provider,
+            'status' => $status,
+            'product_id' => $this->nullableTrim($data['product_id'] ?? null),
+            'base_plan_id' => $this->nullableTrim($data['base_plan_id'] ?? null),
+            'offer_id' => $this->nullableTrim($data['offer_id'] ?? null),
+            'country_code' => MembershipPlan::normalizeCountryCode($data['country_code'] ?? null),
+            'currency' => MembershipPlan::normalizeCurrencyCode($data['currency'] ?? null, null),
+            'amount_paid' => $data['amount_paid'] ?? null,
+            'is_active' => $isActive,
+            'expires_at' => $data['expires_at'] ?? null,
+            'grace_expires_at' => $data['grace_expires_at'] ?? null,
+            'last_verified_at' => $provider === 'manual' ? now() : ($membership?->last_verified_at ?: now()),
+            'raw_purchase' => $provider === 'manual'
+                ? ['source' => 'admin_manual', 'ads_bypass' => true, 'updated_at' => now()->toIso8601String()]
+                : ($membership?->raw_purchase ?? null),
+            'cancelled_at' => $isActive ? null : ($membership?->cancelled_at ?: now()),
+            'cancellation_requested_at' => $isActive ? null : ($membership?->cancellation_requested_at ?: now()),
+            'cancellation_reason' => $isActive ? null : ($membership?->cancellation_reason),
+            'cancellation_details' => $isActive ? null : ($membership?->cancellation_details),
+            'cancellation_source' => $isActive ? null : ($membership?->cancellation_source ?: 'admin'),
+        ];
+    }
+
+    private function matchingMembership(array $data): ?AppMembership
+    {
+        $query = AppMembership::where('domain_id', $data['domain_id']);
+
+        return $query
+            ->where(function ($query) use ($data) {
+                if (! empty($data['device_id'])) {
+                    $query->where('device_id', $data['device_id']);
+                }
+
+                if (! empty($data['email'])) {
+                    empty($data['device_id'])
+                        ? $query->where('email', $data['email'])
+                        : $query->orWhere('email', $data['email']);
+                }
+            })
+            ->first();
+    }
+
+    private function releaseManualMembershipIdentifiers(array $data, AppMembership $target): void
+    {
+        $query = AppMembership::where('domain_id', $data['domain_id']);
+
+        if ($target->exists) {
+            $query->where('id', '!=', $target->getKey());
+        }
+
+        $conflicts = $query
+            ->where(function ($query) use ($data) {
+                if (! empty($data['device_id'])) {
+                    $query->where('device_id', $data['device_id']);
+                }
+
+                if (! empty($data['email'])) {
+                    empty($data['device_id'])
+                        ? $query->where('email', $data['email'])
+                        : $query->orWhere('email', $data['email']);
+                }
+            })
+            ->get();
+
+        foreach ($conflicts as $conflict) {
+            if (! empty($data['device_id']) && $conflict->device_id === $data['device_id']) {
+                $conflict->device_id = null;
+            }
+
+            if (! empty($data['email']) && $conflict->email === $data['email']) {
+                $conflict->email = null;
+            }
+
+            $conflict->save();
+        }
+    }
+
+    private function nullableTrim(mixed $value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? null : $text;
     }
 
     private function validateNote(Request $request): array
