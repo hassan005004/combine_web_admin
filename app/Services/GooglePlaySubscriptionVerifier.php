@@ -15,6 +15,66 @@ class GooglePlaySubscriptionVerifier
 
     public function verify(Domain $domain, string $purchaseToken, ?string $packageName = null): array
     {
+        [$packageName, $accessToken, $settings] = $this->googlePlayContext($domain, $packageName);
+
+        $url = sprintf(
+            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptionsv2/tokens/%s',
+            rawurlencode($packageName),
+            rawurlencode($purchaseToken),
+        );
+
+        $response = Http::withToken($accessToken)->acceptJson()->timeout(20)->get($url);
+
+        if (! $response->successful()) {
+            throw ValidationException::withMessages([
+                'purchase_token' => $response->json('error.message') ?: 'Google Play could not verify this purchase token.',
+            ]);
+        }
+
+        return $this->normalize($response->json() ?? [], (int) ($settings['grace_days'] ?? 3));
+    }
+
+    public function acknowledge(Domain $domain, string $purchaseToken, ?string $subscriptionId, ?string $packageName = null): bool
+    {
+        $subscriptionId = trim((string) $subscriptionId);
+
+        if ($subscriptionId === '') {
+            throw ValidationException::withMessages([
+                'product_id' => 'Google Play subscription product id is required to acknowledge this purchase.',
+            ]);
+        }
+
+        [$packageName, $accessToken] = $this->googlePlayContext($domain, $packageName);
+
+        $url = sprintf(
+            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptions/%s/tokens/%s:acknowledge',
+            rawurlencode($packageName),
+            rawurlencode($subscriptionId),
+            rawurlencode($purchaseToken),
+        );
+
+        $response = Http::withToken($accessToken)
+            ->acceptJson()
+            ->withBody('{}', 'application/json')
+            ->timeout(20)
+            ->post($url);
+
+        if ($response->successful()) {
+            return true;
+        }
+
+        $message = (string) ($response->json('error.message') ?: '');
+        if (str_contains(strtolower($message), 'already')) {
+            return true;
+        }
+
+        throw ValidationException::withMessages([
+            'purchase_token' => $message ?: 'Google Play could not acknowledge this purchase token.',
+        ]);
+    }
+
+    private function googlePlayContext(Domain $domain, ?string $packageName = null): array
+    {
         $settings = $domain->billing_settings ?? [];
         $google = $settings['google_play'] ?? [];
 
@@ -32,23 +92,8 @@ class GooglePlaySubscriptionVerifier
         }
 
         $serviceAccount = $this->serviceAccount($google['service_account_json'] ?? null);
-        $accessToken = $this->accessToken($serviceAccount);
 
-        $url = sprintf(
-            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptionsv2/tokens/%s',
-            rawurlencode($packageName),
-            rawurlencode($purchaseToken),
-        );
-
-        $response = Http::withToken($accessToken)->acceptJson()->timeout(20)->get($url);
-
-        if (! $response->successful()) {
-            throw ValidationException::withMessages([
-                'purchase_token' => $response->json('error.message') ?: 'Google Play could not verify this purchase token.',
-            ]);
-        }
-
-        return $this->normalize($response->json() ?? [], (int) ($settings['grace_days'] ?? 3));
+        return [$packageName, $this->accessToken($serviceAccount), $settings];
     }
 
     private function serviceAccount(mixed $raw): array
@@ -130,6 +175,7 @@ class GooglePlaySubscriptionVerifier
             'status' => $status,
             'is_active' => in_array($status, ['active', 'grace'], true),
             'subscription_state' => $state,
+            'acknowledgement_state' => $payload['acknowledgementState'] ?? null,
             'product_id' => $productId,
             'base_plan_id' => $lineItem['offerDetails']['basePlanId'] ?? null,
             'offer_id' => $lineItem['offerDetails']['offerId'] ?? null,

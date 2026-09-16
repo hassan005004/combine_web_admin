@@ -46,6 +46,15 @@ class MembershipPurchaseController extends Controller
         $period = $this->periodForProduct($plan, $productId, $verifiedBasePlanId);
         $countryCode = strtoupper($verified['country_code'] ?: ($validated['country_code'] ?? '')) ?: null;
         [$amountPaid, $currency] = $this->priceForPlan($plan, $period, $countryCode);
+        $wasAcknowledged = $this->isAcknowledged($verified);
+        if ((bool) $verified['is_active'] && ! $wasAcknowledged) {
+            $wasAcknowledged = $verifier->acknowledge(
+                $domain,
+                $validated['purchase_token'],
+                $productId,
+                $validated['package_name'] ?? null,
+            ) || $wasAcknowledged;
+        }
         $purchaseToken = $validated['purchase_token'];
         $purchaseTokenHash = hash('sha256', $purchaseToken);
         $membership = $this->membershipRecord(
@@ -87,6 +96,7 @@ class MembershipPurchaseController extends Controller
             'raw_purchase' => $verified['raw'],
             'cancelled_at' => $verified['status'] === 'cancelled' ? now() : null,
         ];
+        $membershipData['raw_purchase']['controlhub_acknowledged'] = $wasAcknowledged;
 
         if ($verified['status'] === 'cancelled') {
             $membershipData['cancellation_source'] = 'google_play';
@@ -105,6 +115,8 @@ class MembershipPurchaseController extends Controller
             'membership' => $this->membershipPayload($membership->fresh()),
             'verified' => [
                 'subscription_state' => $verified['subscription_state'],
+                'acknowledgement_state' => $verified['acknowledgement_state'] ?? null,
+                'acknowledged' => $wasAcknowledged,
                 'product_id' => $productId,
                 'period' => $period,
             ],
@@ -221,5 +233,12 @@ class MembershipPurchaseController extends Controller
             'grace_expires_at' => $membership->grace_expires_at?->toIso8601String(),
             'last_verified_at' => $membership->last_verified_at?->toIso8601String(),
         ];
+    }
+
+    private function isAcknowledged(array $verified): bool
+    {
+        $state = strtoupper((string) ($verified['acknowledgement_state'] ?? ''));
+
+        return $state === 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED';
     }
 }

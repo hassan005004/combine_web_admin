@@ -204,11 +204,6 @@ class MembershipPlan extends Model
             $currency = self::normalizeCurrencyCode($countryPrice['currency'] ?? null, $currency) ?: $currency;
         }
 
-        if (! $countryPriceApplied && ! $tierPriceApplied) {
-            $monthlyPrice = 0;
-            $yearlyPrice = 0;
-        }
-
         return [
             'country_code' => $countryCode,
             'country_tier' => $selectedCountryTier,

@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppConfigController;
 use App\Http\Controllers\Api\AppEngagementController;
 use App\Http\Controllers\Api\FcmTokenController;
+use App\Http\Controllers\Api\GooglePlayNotificationController;
 use App\Http\Controllers\Api\MembershipCancellationController;
 use App\Http\Controllers\Api\MembershipPurchaseController;
 
@@ -27,6 +28,8 @@ Route::get('/app-config', [AppConfigController::class, 'show']);
 Route::post('/app-config', [AppConfigController::class, 'show']);
 Route::post('/membership-trial', [AppConfigController::class, 'startTrial']);
 Route::post('/membership-purchase/verify', [MembershipPurchaseController::class, 'verify']);
+Route::post('/google-play/rtdn', [GooglePlayNotificationController::class, 'store']);
+Route::post('/google-play/notifications', [GooglePlayNotificationController::class, 'store']);
 Route::post('/fcm-token', [FcmTokenController::class, 'store']);
 Route::post('/user-active', [FcmTokenController::class, 'touch']);
 Route::post('/membership-cancel', [MembershipCancellationController::class, 'store']);
