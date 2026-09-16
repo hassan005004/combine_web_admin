@@ -86,15 +86,78 @@ export function Dashboard({ data, details, selectedEntry, navigate, onDeleteEntr
       </div>
       <DataTable
         title="Recent Active Users"
-        columns={['Entry', 'User', 'Device ID', 'Last Seen']}
+        columns={['User', 'Device Details', 'Activity', 'Push Token']}
         rows={recentUsers.map((device) => [
-          selectedEntry?.title || device.domain?.title || '-',
-          device.email || 'Guest',
-          device.device_id,
-          formatDate(device.last_seen_at),
+          <UserCell device={device} entryTitle={selectedEntry?.title || device.domain?.title} />,
+          <DeviceCell device={device} />,
+          <ActivityCell device={device} />,
+          <TokenCell token={device.fcm_token} />,
         ])}
       />
     </>
+  );
+}
+
+function UserCell({ device, entryTitle }) {
+  return (
+    <div className="min-w-52">
+      <div className="font-semibold text-gray-800 dark:text-gray-100">
+        {device.email || 'Guest user'}
+      </div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {entryTitle || '-'}
+      </div>
+    </div>
+  );
+}
+
+function DeviceCell({ device }) {
+  return (
+    <div className="min-w-80">
+      <div className="font-mono text-xs text-gray-800 dark:text-gray-100 break-all">
+        {device.device_id || '-'}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <span>Record #{device.id}</span>
+        <span>Created {formatDate(device.created_at)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityCell({ device }) {
+  return (
+    <div className="min-w-44">
+      <div className="font-semibold text-gray-800 dark:text-gray-100">
+        {formatRelative(device.last_seen_at)}
+      </div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {formatDate(device.last_seen_at)}
+      </div>
+      <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${activeBadgeClass(device.last_seen_at)}`}>
+        {activeLabel(device.last_seen_at)}
+      </span>
+    </div>
+  );
+}
+
+function TokenCell({ token }) {
+  const value = String(token || '').trim();
+  const activityOnly = value.startsWith('activity:') || value.startsWith('token:');
+
+  return (
+    <div className="min-w-52">
+      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+        value && !activityOnly
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+      }`}>
+        {value && !activityOnly ? 'FCM saved' : 'Activity only'}
+      </span>
+      <div className="mt-2 font-mono text-xs text-gray-500 dark:text-gray-400 break-all">
+        {shortToken(value)}
+      </div>
+    </div>
   );
 }
 
@@ -119,6 +182,49 @@ function entryStats(details) {
     features: (details.features || []).filter((feature) => feature.is_active).length,
     notification_settings: (details.notification_settings || []).length,
   };
+}
+
+function activeLabel(value) {
+  const minutes = minutesSince(value);
+  if (minutes == null) return 'Never seen';
+  if (minutes <= 30) return 'Active now';
+  if (minutes <= 60 * 24) return 'Today';
+  if (minutes <= 60 * 24 * 7) return 'Last 7 days';
+  return 'Older';
+}
+
+function activeBadgeClass(value) {
+  const minutes = minutesSince(value);
+  if (minutes == null) return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+  if (minutes <= 30) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
+  if (minutes <= 60 * 24) return 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300';
+  return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+}
+
+function formatRelative(value) {
+  const minutes = minutesSince(value);
+  if (minutes == null) return 'Never';
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function minutesSince(value) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return null;
+  return Math.max(0, Math.floor((Date.now() - time) / 60000));
+}
+
+function shortToken(value) {
+  if (!value) return '-';
+  if (value.startsWith('activity:')) return 'Saved from app activity ping';
+  if (value.startsWith('token:')) return 'Saved from token ping';
+  if (value.length <= 28) return value;
+  return `${value.slice(0, 16)}...${value.slice(-8)}`;
 }
 
 function countSince(devices, minutes, now) {

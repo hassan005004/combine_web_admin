@@ -8,6 +8,7 @@ use App\Models\AppMembership;
 use App\Models\Domain;
 use App\Models\Faq;
 use App\Models\MembershipPlan;
+use App\Models\UserDevice;
 use Illuminate\Http\Request;
 
 class AppConfigController extends Controller
@@ -23,9 +24,11 @@ class AppConfigController extends Controller
 
         $domain = Domain::where('application_id', $validated['application_id'])->firstOrFail();
         $deviceId = $validated['device_id'] ?? null;
-        $email = $validated['email'] ?? null;
+        $email = isset($validated['email']) ? strtolower($validated['email']) : null;
         $countryCode = MembershipPlan::normalizeCountryCode($validated['country_code'] ?? null);
         $membership = null;
+
+        $this->touchUserDevice($domain, $deviceId, $email);
 
         $membershipQuery = AppMembership::where('domain_id', $domain->id)
             ->where('is_active', true)
@@ -302,5 +305,47 @@ class AppConfigController extends Controller
         }
 
         return 'expired';
+    }
+
+    private function touchUserDevice(Domain $domain, ?string $deviceId, ?string $email): void
+    {
+        $deviceId = trim((string) $deviceId);
+        $email = $email ? strtolower($email) : null;
+
+        if ($deviceId === '' && ! $email) {
+            return;
+        }
+
+        $device = null;
+        if ($deviceId !== '') {
+            $device = UserDevice::where('domain_id', $domain->id)
+                ->where('device_id', $deviceId)
+                ->first();
+        }
+
+        if (! $device && $email) {
+            $device = UserDevice::where('domain_id', $domain->id)
+                ->where('email', $email)
+                ->latest('last_seen_at')
+                ->first();
+        }
+
+        if (! $device) {
+            $device = new UserDevice([
+                'domain_id' => $domain->id,
+                'device_id' => $deviceId !== '' ? $deviceId : 'email:'.sha1($email),
+            ]);
+        }
+
+        if ($email) {
+            $device->email = $email;
+        }
+
+        if (! $device->fcm_token) {
+            $device->fcm_token = 'activity:'.sha1($domain->id.'|'.$device->device_id);
+        }
+
+        $device->last_seen_at = now();
+        $device->save();
     }
 }

@@ -70,23 +70,34 @@ class FcmTokenController extends Controller
             return response()->json(['message' => 'device_id or fcm_token required.'], 422);
         }
 
-        // Build the unique key to find or create the record
-        $matchKey = [];
-        $matchKey['domain_id'] = $domain->id;
-
+        $deviceQuery = UserDevice::where('domain_id', $domain->id);
         if (! empty($deviceId)) {
-            $matchKey['device_id'] = $deviceId;
+            $deviceQuery->where('device_id', $deviceId);
         } else {
-            $matchKey['fcm_token'] = $fcmToken;
+            $deviceQuery->where('fcm_token', $fcmToken);
         }
 
-        $fillData = ['last_seen_at' => now()];
-        if ($email !== null)    $fillData['email']     = $email;
-        if (! empty($fcmToken)) $fillData['fcm_token'] = $fcmToken;
-        if (! empty($deviceId)) $fillData['device_id'] = $deviceId;
+        $device = $deviceQuery->first() ?: new UserDevice([
+            'domain_id' => $domain->id,
+            'device_id' => $deviceId ?: 'token:'.sha1((string) $fcmToken),
+        ]);
 
-        // updateOrCreate so a device-only ping (no FCM) still registers the device
-        $device = UserDevice::updateOrCreate($matchKey, $fillData);
+        if ($email !== null) {
+            $device->email = $email;
+        }
+
+        if (! empty($deviceId)) {
+            $device->device_id = $deviceId;
+        }
+
+        if (! empty($fcmToken)) {
+            $device->fcm_token = $fcmToken;
+        } elseif (! $device->fcm_token) {
+            $device->fcm_token = 'activity:'.sha1($domain->id.'|'.$device->device_id);
+        }
+
+        $device->last_seen_at = now();
+        $device->save();
 
         return response()->json([
             'success' => true,
