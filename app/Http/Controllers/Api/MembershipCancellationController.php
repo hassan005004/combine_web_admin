@@ -69,6 +69,7 @@ class MembershipCancellationController extends Controller
                 'application_id' => $domain->application_id,
                 'email' => $membership->email,
                 'plan' => $membership->plan,
+                'billing_period' => $membership->billing_period,
                 'is_active' => $membership->is_active,
                 'provider' => $membership->provider,
                 'status' => $membership->status,

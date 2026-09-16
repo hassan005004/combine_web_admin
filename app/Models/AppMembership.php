@@ -14,6 +14,7 @@ class AppMembership extends Model
         'email',
         'device_id',
         'plan',
+        'billing_period',
         'promo_code',
         'promo_discount',
         'amount_paid',

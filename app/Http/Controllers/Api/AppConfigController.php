@@ -205,6 +205,7 @@ class AppConfigController extends Controller
             'in_grace' => $status === 'grace',
             'status' => $status,
             'plan' => $membership?->plan ?? 'free',
+            'billing_period' => $membership?->billing_period,
             'provider' => $membership?->provider,
             'product_id' => $membership?->product_id,
             'expires_at' => $membership?->expires_at?->toIso8601String(),

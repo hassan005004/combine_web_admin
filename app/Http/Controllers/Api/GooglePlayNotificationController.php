@@ -83,6 +83,7 @@ class GooglePlayNotificationController extends Controller
         $membership->fill([
             'domain_id' => $domain->id,
             'plan' => $plan->name,
+            'billing_period' => $period,
             'promo_code' => null,
             'promo_discount' => 0,
             'amount_paid' => $amountPaid,
@@ -119,6 +120,7 @@ class GooglePlayNotificationController extends Controller
             'success' => true,
             'membership_id' => $membership->id,
             'product_id' => $productId,
+            'period' => $period,
             'status' => $verified['status'],
             'acknowledged' => $wasAcknowledged,
         ]);

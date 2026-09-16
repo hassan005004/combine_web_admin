@@ -54,7 +54,7 @@ return [
     'channels' => [
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            'channels' => explode(',', env('LOG_STACK', 'errorlog')),
             'ignore_exceptions' => false,
         ],
 
@@ -124,7 +124,7 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => env('LOG_EMERGENCY_PATH', 'php://stderr'),
         ],
     ],
 
