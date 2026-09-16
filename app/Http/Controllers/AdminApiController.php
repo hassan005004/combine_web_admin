@@ -14,6 +14,7 @@ use App\Models\StaffUserEntity;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Services\EntitySmtpMailer;
+use App\Services\GooglePlaySubscriptionVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Artisan;
@@ -196,20 +197,35 @@ class AdminApiController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function cancelMembership(AppMembership $membership)
+    public function cancelMembership(AppMembership $membership, GooglePlaySubscriptionVerifier $googlePlay)
     {
         $data = request()->validate([
             'reason' => ['nullable', 'string', 'max:255'],
             'details' => ['nullable', 'string'],
         ]);
 
+        $playCancelled = false;
+        if ($membership->provider === 'google_play' &&
+            filled($membership->purchase_token) &&
+            filled($membership->product_id)) {
+            $playCancelled = $googlePlay->cancel(
+                $membership->domain,
+                $membership->purchase_token,
+                $membership->product_id,
+                $membership->domain?->billing_settings['google_play']['package_name'] ?? null,
+                $data['reason'] ?? 'Cancelled by admin from ControlHub.'
+            );
+        }
+
         $membership->update([
             'is_active'    => false,
+            'status' => 'cancelled',
             'cancelled_at' => now(),
             'cancellation_requested_at' => $membership->cancellation_requested_at ?: now(),
             'cancellation_reason' => $data['reason'] ?? $membership->cancellation_reason,
-            'cancellation_details' => $data['details'] ?? $membership->cancellation_details,
-            'cancellation_source' => $membership->cancellation_source ?: 'admin',
+            'cancellation_details' => $data['details']
+                ?? ($playCancelled ? 'Google Play subscription cancellation requested.' : $membership->cancellation_details),
+            'cancellation_source' => 'admin',
         ]);
         app(EntitySmtpMailer::class)->membershipChanged($membership->domain, $membership->fresh(), 'cancelled by admin');
 

@@ -73,6 +73,83 @@ class GooglePlaySubscriptionVerifier
         ]);
     }
 
+    public function cancel(
+        Domain $domain,
+        string $purchaseToken,
+        ?string $subscriptionId,
+        ?string $packageName = null,
+        ?string $reason = null
+    ): bool {
+        $subscriptionId = trim((string) $subscriptionId);
+
+        if ($subscriptionId === '') {
+            throw ValidationException::withMessages([
+                'product_id' => 'Google Play subscription product id is required to cancel this purchase.',
+            ]);
+        }
+
+        [$packageName, $accessToken] = $this->googlePlayContext($domain, $packageName);
+
+        $reasonText = trim((string) ($reason ?: 'Cancelled from ControlHub.'));
+        $v2Url = sprintf(
+            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptionsv2/tokens/%s:cancel',
+            rawurlencode($packageName),
+            rawurlencode($purchaseToken),
+        );
+
+        $v2Response = Http::withToken($accessToken)
+            ->acceptJson()
+            ->asJson()
+            ->timeout(20)
+            ->post($v2Url, [
+                'cancellationContext' => [
+                    'userInitiatedCancellation' => [
+                        'cancelSurveyResult' => [
+                            'reason' => 'CANCEL_SURVEY_REASON_OTHERS',
+                            'reasonUserInput' => mb_substr($reasonText, 0, 255),
+                        ],
+                    ],
+                ],
+            ]);
+
+        if ($v2Response->successful()) {
+            return true;
+        }
+
+        $v2Message = (string) ($v2Response->json('error.message') ?: '');
+
+        $legacyUrl = sprintf(
+            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/%s/purchases/subscriptions/%s/tokens/%s:cancel',
+            rawurlencode($packageName),
+            rawurlencode($subscriptionId),
+            rawurlencode($purchaseToken),
+        );
+
+        $legacyResponse = Http::withToken($accessToken)
+            ->acceptJson()
+            ->withBody('{}', 'application/json')
+            ->timeout(20)
+            ->post($legacyUrl);
+
+        if ($legacyResponse->successful()) {
+            return true;
+        }
+
+        $message = (string) ($legacyResponse->json('error.message') ?: $v2Message);
+        $lower = strtolower($message);
+
+        if (str_contains($lower, 'already') ||
+            str_contains($lower, 'not active') ||
+            str_contains($lower, 'canceled') ||
+            str_contains($lower, 'cancelled')) {
+            return true;
+        }
+
+        throw ValidationException::withMessages([
+            'purchase_token' => $message ?: 'Google Play could not cancel this subscription.',
+        ]);
+    }
+
     private function googlePlayContext(Domain $domain, ?string $packageName = null): array
     {
         $settings = $domain->billing_settings ?? [];
