@@ -112,6 +112,20 @@ function routeFromPath(pathname = window.location.pathname) {
     };
   }
 
+  const modulePromoMatch = pathname.match(/^\/domains\/(\d+)\/([^/]+)\/([^/]+)\/promo$/);
+  if (modulePromoMatch) {
+    const selectedEntryId = Number(modulePromoMatch[1]);
+    const screen = modulePromoMatch[2];
+    return {
+      page: 'manage',
+      selectedEntryId,
+      detailTab: tabKeyBySlug[screen] || 'plans',
+      editingEntryId: null,
+      moduleAction: 'promo',
+      moduleItemId: modulePromoMatch[3],
+    };
+  }
+
   const selectedMatch = pathname.match(/^\/domains\/(\d+)(?:\/([^/]+))?$/);
   if (selectedMatch) {
     const selectedEntryId = Number(selectedMatch[1]);
@@ -245,6 +259,7 @@ function AdminApp() {
     const base = selectedUrl(entryId, 'manage', tab);
     if (action === 'create') return `${base}/create`;
     if (action === 'edit' && itemId) return `${base}/${itemId}/edit`;
+    if (action === 'promo' && itemId) return `${base}/${itemId}/promo`;
     return base;
   }
 

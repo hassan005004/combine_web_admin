@@ -113,6 +113,25 @@ function periodLabel(value) {
   return normalizePeriod(value) === 'yearly' ? 'Yearly' : 'Monthly';
 }
 
+function isPlainLeftClick(event) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && !event.defaultPrevented;
+}
+
+function membershipActionHref(entryId, action, itemId) {
+  const base = `/domains/${entryId}/memberships`;
+  if (action === 'edit' && itemId) return `${base}/${itemId}/edit`;
+  if (action === 'promo' && itemId) return `${base}/${itemId}/promo`;
+  return base;
+}
+
+function ActionTooltip({ label }) {
+  return (
+    <span className="pointer-events-none absolute -top-9 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-950 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-sm transition group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-gray-100 dark:text-gray-950">
+      {label}
+    </span>
+  );
+}
+
 export function MembershipManager({ entry, items, plans = [], reload, setHeaderAction, moduleAction, moduleItemId, navigateModule }) {
   const blankForm = {
     domain_id: entry.id,
@@ -163,9 +182,29 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
       if (membership) editMembership(membership, false);
       return;
     }
+    if (moduleAction === 'promo' && moduleItemId) {
+      const membership = items.find((item) => String(item.id) === String(moduleItemId));
+      if (membership) openPromo(membership, false);
+      return;
+    }
     setScreen('list');
     setEditingId(null);
   }, [moduleAction, moduleItemId, items, plans]);
+
+  function closeModuleScreen() {
+    if (navigateModule) {
+      navigateModule();
+      return;
+    }
+
+    setScreen('list');
+  }
+
+  function handleActionLink(event, callback) {
+    if (!isPlainLeftClick(event)) return;
+    event.preventDefault();
+    callback();
+  }
 
   function createMembership() {
     setForm({ ...blankForm, domain_id: entry.id, plan: plans[0]?.name || '' });
@@ -216,7 +255,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
     await reload();
   }
 
-  function openPromo(item) {
+  function openPromo(item, push = true) {
     setPromoId(item.id);
     setPromoForm({
       promo_code: item.promo_code || '',
@@ -224,6 +263,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
       amount_paid: item.amount_paid || '',
     });
     setScreen('promo');
+    if (push) navigateModule?.('promo', item.id);
   }
 
   async function submitPromo(e) {
@@ -233,7 +273,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
       body: JSON.stringify(promoForm),
     });
     await reload();
-    setScreen('list');
+    closeModuleScreen();
   }
 
   // ── Promo screen ────────────────────────────────────────────────────────────
@@ -253,7 +293,7 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
           )}
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 rounded-lg bg-violet-600 text-white">Apply Promo</button>
-            <button type="button" onClick={() => setScreen('list')} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
+            <button type="button" onClick={closeModuleScreen} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-100">Cancel</button>
           </div>
         </form>
       </div>
@@ -292,23 +332,34 @@ export function MembershipManager({ entry, items, plans = [], reload, setHeaderA
       }}
       actions={(item) => (
         <ActionGroup>
-          <EditButton label={`Edit ${item.email}`} onClick={() => editMembership(item)} />
+          <EditButton
+            label={`Edit ${item.email}`}
+            href={membershipActionHref(entry.id, 'edit', item.id)}
+            onClick={() => editMembership(item)}
+          />
 
           {/* Promo button */}
-          <button type="button" title="Apply promo code" onClick={() => openPromo(item)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-300">
+          <a
+            href={membershipActionHref(entry.id, 'promo', item.id)}
+            title="Apply promo code"
+            aria-label="Apply promo code"
+            onClick={(event) => handleActionLink(event, () => openPromo(item))}
+            className="group relative inline-flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 transition hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-300"
+          >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <path d="M1 8.5 8.5 1h5.5v5.5L6.5 15 1 8.5Zm10-5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" />
             </svg>
-          </button>
+            <ActionTooltip label="Apply promo code" />
+          </a>
 
           {/* Cancel button — only if active */}
           {item.is_active && !item.cancelled_at && (
             <button type="button" title="Cancel membership" onClick={() => cancelMembership(item)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-500/15 dark:text-orange-300">
+              className="group relative inline-flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-700 transition hover:bg-orange-200 dark:bg-orange-500/15 dark:text-orange-300">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                 <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm3 4.5L5.5 11l-1-1L10 4.5l1 1Z" />
               </svg>
+              <ActionTooltip label="Cancel membership" />
             </button>
           )}
 

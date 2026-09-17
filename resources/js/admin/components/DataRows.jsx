@@ -87,20 +87,20 @@ export function DeleteButton({ url, reload }) {
 }
 
 export function ActionGroup({ children }) {
-  return <div className="inline-flex items-center justify-end gap-2">{children}</div>;
+  return <div className="inline-flex items-center justify-end gap-2 overflow-visible">{children}</div>;
 }
 
-export function ViewButton({ onClick, label = 'View' }) {
+export function ViewButton({ onClick, href, label = 'View' }) {
   return (
-    <IconButton label={label} tone="primary" onClick={onClick}>
+    <IconButton label={label} tone="primary" onClick={onClick} href={href}>
       <EyeIcon />
     </IconButton>
   );
 }
 
-export function EditButton({ onClick, label = 'Edit' }) {
+export function EditButton({ onClick, href, label = 'Edit' }) {
   return (
-    <IconButton label={label} tone="info" onClick={onClick}>
+    <IconButton label={label} tone="info" onClick={onClick} href={href}>
       <EditIcon />
     </IconButton>
   );
@@ -114,13 +114,50 @@ export function ResendButton({ onClick, label = 'Resend' }) {
   );
 }
 
-function IconButton({ children, label, onClick, tone = 'neutral' }) {
+function isPlainLeftClick(event) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && !event.defaultPrevented;
+}
+
+function ActionTooltip({ label }) {
+  return (
+    <span className="pointer-events-none absolute -top-9 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-950 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-sm transition group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-gray-100 dark:text-gray-950">
+      {label}
+    </span>
+  );
+}
+
+function IconButton({ children, label, onClick, tone = 'neutral', href }) {
   const tones = {
     primary: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-300',
     info: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-500/15 dark:text-blue-300',
     danger: 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/15 dark:text-red-300',
     neutral: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100',
   };
+  const className = `group relative inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${tones[tone]}`;
+  const content = (
+    <>
+      {children}
+      <ActionTooltip label={label} />
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        title={label}
+        aria-label={label}
+        onClick={(event) => {
+          if (!onClick || !isPlainLeftClick(event)) return;
+          event.preventDefault();
+          onClick(event);
+        }}
+        className={className}
+      >
+        {content}
+      </a>
+    );
+  }
 
   return (
     <button
@@ -128,9 +165,9 @@ function IconButton({ children, label, onClick, tone = 'neutral' }) {
       title={label}
       aria-label={label}
       onClick={onClick}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${tones[tone]}`}
+      className={className}
     >
-      {children}
+      {content}
     </button>
   );
 }
