@@ -1,0 +1,39 @@
+# .github/workflows/deploy.yml
+name: aladin.com.pk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: my vps
+
+    steps:
+      # 1. Checkout your repo
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Install Node.js on the runner (so you could run builds or tests here if you wanted)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '21.x'
+
+      # 3. SSH into your server and run your manual deploy commands
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host:     ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key:      ${{ secrets.SSH_KEY }}
+          port:     ${{ secrets.PORT }}
+          script: |
+            source ~/.nvm/nvm.sh
+            nvm use 22
+            cd /var/www/controlhub.taqwa360.com
+            php artisan migrate
+            
+            
